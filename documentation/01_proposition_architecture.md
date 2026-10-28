@@ -4,6 +4,16 @@ Proposition soumise à validation avant tout développement. L'objectif : une ap
 autonome, simple, qui remplace le classeur `KPI.xlsx` pour l'activité
 Cécile Plessis Photographe.
 
+## Décisions actées (28 octobre 2026)
+
+- **Interface** : application web locale (FastAPI + Jinja2 + HTMX) ;
+- **Déploiement** : un seul ordinateur, lancement par icône de bureau ;
+- **Google Analytics** : Cécile a un accès administrateur à la propriété GA4, le
+  connecteur pourra être branché à l'étape 5 ;
+- **Indicateurs en construction** (« Nombre de visiteurs GA », « Nombre de
+  conversions ») : reportés à plus tard, le mode de calcul n'est pas encore défini.
+  L'architecture prévoit leur ajout ultérieur sans refonte.
+
 ## Choix techniques proposés
 
 | Composant | Choix proposé | Pourquoi |
@@ -154,16 +164,28 @@ Les indicateurs existants (fidèles au classeur) :
 | Indicateur | Règle |
 |---|---|
 | Nombre de prospects | lignes de suivi avec statut `prospect`, groupées par mois et canal |
-| Nombre de demandes | lignes avec action public `Demande`, groupées par mois et canal |
-| Taux de ghosting | par mois : (demandes − réponses) / demandes, borné à 0 |
+| Nombre de demandes | lignes avec action public ∈ {`Demande`, `Réservation`}, dédoublonnées par (mois, personne), groupées par mois et canal |
+| Taux de ghosting | par mois : (demandes − réponses) / demandes, borné à 0 (voir règle « réponse » ci-dessous) |
 | RDV par canal | lignes avec action photographe `RDV`, groupées par canal |
-| Nombre de visiteurs GA | relevés de la table `ga_visiteurs` (à finaliser) |
-| Nombre de conversions | à définir (voir question ouverte) |
+| Nombre de visiteurs GA | reporté à plus tard (mode de calcul à définir) |
+| Nombre de conversions | reporté à plus tard (mode de calcul à définir) |
+
+### Règle « réponse d'un contact » (à valider)
+
+L'analyse du classeur montre que la table Excel « Contacts ayant répondus » ne suit
+aucun filtre simple : elle a été maintenue semi-manuellement. Il faut donc choisir une
+règle explicite. Proposition par défaut :
+
+> Une personne a « répondu » sur un mois donné si au moins une ligne du suivi de ce
+> mois porte une action du public autre qu'une demande ou un tiret
+> (c'est-à-dire : Réponse, Confirmation, Paiement, RDV, Refus, Échanges…).
+
+Cette règle sera facile à ajuster : elle est isolée dans une seule méthode.
 
 L'ajout d'un nouvel indicateur = une nouvelle classe + un gabarit d'affichage : aucune
-modification du reste de l'application. Les tests compareront systématiquement les
-résultats aux valeurs témoins du classeur (91 prospects/demandes, taux de ghosting
-36,7 %, 28 RDV).
+modification du reste de l'application. Les tests vérifieront les règles documentées
+et les valeurs témoins du classeur (voir le document d'analyse), en gardant à l'esprit
+que les tables Excel intermédiaires sont légèrement en retard sur les saisies.
 
 ## Parcours de saisie proposé
 
@@ -203,14 +225,15 @@ du classeur servira de relais.
 | Étape | Contenu | Tests associés |
 |---|---|---|
 | 1 | Socle : base SQLite, référentiels, import initial du classeur | import sans doublon, valeurs témoins |
-| 2 | Moteur de calcul des KPI existants | fidélité aux valeurs du classeur (91, 36,7 %, 28) |
+| 2 | Moteur de calcul des KPI existants | fidélité aux règles documentées (prospects, demandes, ghosting, RDV) |
 | 3 | Écran de saisie du suivi | validation des champs, création de personne |
 | 4 | Écrans de consultation KPI + export PDF | rendu des périodes, contenu PDF |
 | 5 | Connecteur GA4 | mois de test, idempotence des rechargements |
-| 6 | Documentation utilisateur complète | revue de la documentation |
+| 6 | Indicateurs reportés (visiteurs GA, conversions) et documentation complète | selon les règles définies alors |
 
 ## Points à valider avant de démarrer
 
-Voir les questions listées dans la discussion : type d'interface, définition des deux
-indicateurs en construction, environnement d'utilisation de Cécile, et accès à la
-propriété GA4.
+- la règle « réponse d'un contact » proposée ci-dessus (seul point restant à trancher
+  avant l'étape 2) ;
+- le parcours de saisie (étape 3) sera validé avec Cécile avant le développement de
+  l'interface.

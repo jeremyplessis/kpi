@@ -119,14 +119,40 @@ Principe structurant : ces structures intermédiaires ne deviennent **pas** des 
 en base. Elles correspondent à des règles de calcul, donc à du code Python, éventuellement
 mises en cache. Seules les données saisies et les relevés GA sont stockées.
 
+### Règles réellement observées (vérification ligne à ligne)
+
+La comparaison des tables intermédiaires avec l'onglet `Suivi` fait apparaître des règles
+partiellement implicites :
+
+- **Demandes** : la table `Nb demandes` (101 lignes) correspond exactement aux lignes du
+  suivi avec `Action public` ∈ {`Demande`, `Réservation`}, dédoublonnées par
+  (année, mois, nom) : les réservations en ligne sont donc comptées comme des demandes ;
+- **Réponses** : la table `Contacts ayant répondus` (62 lignes) ne correspond à **aucun
+  filtre simple** sur le suivi (ni `Action photographe = Réponse` : 68 combinaisons
+  possibles avec seulement 38 communes, ni aucune autre valeur testée). Il s'agit d'une
+  structure maintenue semi-manuellement, vraisemblablement en retard sur les dernières
+  saisies ;
+- **Prospects** : 91 lignes dans la table, 93 dans le suivi (la table est en retard) ;
+- **RDV** : 28 lignes dans la table, 30 dans le suivi (même constat).
+
+Conclusion : les valeurs des TCD (91, 101, 62, 28…) proviennent de tables intermédiaires
+figées, légèrement décalées par rapport aux dernières saisies. L'application devra :
+
+1. définir des règles **explicites et documentées** (une « réponse » = à faire valider
+   avec l'utilisatrice, voir la proposition dans le document d'architecture) ;
+2. accepter de légers écarts avec les valeurs actuelles des TCD, ces écarts provenant
+   du caractère manuel des tables Excel et non d'une erreur de calcul.
+
 ## Valeurs témoins pour les tests
 
 L'application devra reproduire les valeurs actuellement calculées (points de contrôle
 pour les tests automatisés) :
 
-- Nombre de prospects : 43 en 2025, 48 en 2026, total 91 ;
-- Nombre de demandes : 91 au total ;
-- Taux de ghosting global : 98 demandes, 62 réponses, taux 36,7 % ;
-- RDV par canal : 28 au total (dont téléphone 15, mail 7, studio 3).
+- Nombre de prospects : 43 en 2025, 48 en 2026, total 91 (table figée ;
+  93 lignes réelles dans le suivi) ;
+- Nombre de demandes : 101 au total (règle « Demande + Réservation », dédoublonnée
+  par mois et par personne) ;
+- Taux de ghosting global : 98 demandes, 62 réponses, taux 36,7 % (table figée) ;
+- RDV par canal : 28 au total (table figée ; 30 lignes réelles dans le suivi).
 
 Ces valeurs seront figées dans des jeux de tests, en anonymisant les noms de personnes.
