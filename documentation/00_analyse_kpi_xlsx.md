@@ -41,7 +41,7 @@ Remarques :
 
 ## Onglet `Suivi` : la saisie d'activité
 
-14 colonnes, environ 150 lignes saisies de janvier 2025 à octobre 2026 :
+14 colonnes, 249 lignes saisies avec un nom, de janvier 2025 à octobre 2026 :
 
 | Colonne | Contenu | Observations |
 |---|---|---|
@@ -121,27 +121,30 @@ mises en cache. Seules les données saisies et les relevés GA sont stockées.
 
 ### Règles réellement observées (vérification ligne à ligne)
 
-La comparaison des tables intermédiaires avec l'onglet `Suivi` fait apparaître des règles
-partiellement implicites :
+La comparaison des tables intermédiaires avec l'onglet `Suivi` fait
+apparaître des règles partiellement implicites :
 
-- **Demandes** : la table `Nb demandes` (101 lignes) correspond exactement aux lignes du
-  suivi avec `Action public` ∈ {`Demande`, `Réservation`}, dédoublonnées par
-  (année, mois, nom) : les réservations en ligne sont donc comptées comme des demandes ;
-- **Réponses** : la table `Contacts ayant répondus` (62 lignes) ne correspond à **aucun
-  filtre simple** sur le suivi (ni `Action photographe = Réponse` : 68 combinaisons
-  possibles avec seulement 38 communes, ni aucune autre valeur testée). Il s'agit d'une
-  structure maintenue semi-manuellement, vraisemblablement en retard sur les dernières
-  saisies ;
-- **Prospects** : 91 lignes dans la table, 93 dans le suivi (la table est en retard) ;
-- **RDV** : 28 lignes dans la table, 30 dans le suivi (même constat).
+- **Demandes** : la table `Nb demandes` (101 lignes) est entièrement
+  contenue dans les lignes du suivi avec `Action public` ∈ {`Demande`,
+  `Réservation`} (104 combinaisons possibles) : la règle « une demande =
+  Demande ou Réservation » est confirmée, et la table est simplement en
+  retard de 3 lignes sur les dernières saisies ;
+- **Prospects** : 91 lignes dans la table, 93 dans le suivi (même constat
+  de retard) ;
+- **Réponses** : la table `Contacts ayant répondus` (62 lignes) présente
+  des écarts avec toutes les règles candidates testées (y compris des
+  lignes absentes du suivi) : son origine exacte n'a pas pu être déterminée,
+  probablement une structure maintenue semi-manuellement. Une règle
+  explicite a donc été définie et validée avec l'utilisatrice (voir le
+  document d'architecture) ;
+- **RDV** : 28 lignes dans la table, 30 dans le suivi (retard de la table).
 
-Conclusion : les valeurs des TCD (91, 101, 62, 28…) proviennent de tables intermédiaires
-figées, légèrement décalées par rapport aux dernières saisies. L'application devra :
-
-1. définir des règles **explicites et documentées** (une « réponse » = à faire valider
-   avec l'utilisatrice, voir la proposition dans le document d'architecture) ;
-2. accepter de légers écarts avec les valeurs actuelles des TCD, ces écarts provenant
-   du caractère manuel des tables Excel et non d'une erreur de calcul.
+Conclusion : les valeurs des TCD (91, 101, 62, 28…) proviennent de tables
+intermédiaires légèrement décalées par rapport aux dernières saisies. La
+règle « réponse » étant désormais explicite, l'application produira des
+valeurs légèrement différentes des TCD actuels sur le taux de ghosting :
+les écarts proviennent du caractère manuel des tables Excel, pas d'une
+erreur de calcul.
 
 ## Valeurs témoins pour les tests
 

@@ -99,8 +99,7 @@ colonne `actif` pour désactiver une valeur sans perdre l'historique.
 | `statut_contact` | prospect, client |
 | `prestation` | Mariage, Séances, Carte cadeau, Identité, Fêtes, EVJF, autre |
 | `detail_prestation` | Famille, Grossesse, Nouveau-né, Portrait, EVJF, Couple, Baptême, Duo, Mariage, autre |
-| `action_public` | Demande, Paiement, RDV, Relance, Refus, Réservation, … |
-| `action_photographe` | Réponse, Relance, RDV, Devis, Confirmation, … |
+| `action` | Liste unique des actions (Demande, Paiement, RDV, Relance, Refus, Réservation, Réponse, Devis, Confirmation…), utilisée à la fois pour l'action du public et celle du photographe |
 | `personne` | Personnes créées automatiquement à la saisie (nom, téléphone éventuel, note) |
 
 ### Table principale
@@ -170,17 +169,22 @@ Les indicateurs existants (fidèles au classeur) :
 | Nombre de visiteurs GA | reporté à plus tard (mode de calcul à définir) |
 | Nombre de conversions | reporté à plus tard (mode de calcul à définir) |
 
-### Règle « réponse d'un contact » (à valider)
+### Règle « réponse d'un contact » (validée le 28 octobre 2026)
 
-L'analyse du classeur montre que la table Excel « Contacts ayant répondus » ne suit
-aucun filtre simple : elle a été maintenue semi-manuellement. Il faut donc choisir une
-règle explicite. Proposition par défaut :
+L'analyse du classeur montre que la table Excel « Contacts ayant répondus »
+ne suit aucun filtre simple identifiable : une règle explicite a donc été
+définie puis validée avec l'utilisatrice :
 
-> Une personne a « répondu » sur un mois donné si au moins une ligne du suivi de ce
-> mois porte une action du public autre qu'une demande ou un tiret
-> (c'est-à-dire : Réponse, Confirmation, Paiement, RDV, Refus, Échanges…).
+> Une personne a « répondu » sur un mois donné si au moins une ligne du
+> suivi de ce mois porte une action du public autre qu'une demande, un
+> tiret ou une relance (c'est-à-dire : Réponse, Confirmation, Paiement,
+> RDV, Refus, Échanges…). Une « Relance » est en effet une action du
+> photographe, pas une réponse du contact (point à confirmer avec
+> l'utilisatrice lors des tests).
 
-Cette règle sera facile à ajuster : elle est isolée dans une seule méthode.
+Le taux de ghosting se lit comme un ratio de flux mensuels (personnes
+ayant demandé ce mois-ci / personnes ayant répondu ce mois-ci), et non
+comme le suivi d'une cohorte de demandes ; le taux est borné à 0.
 
 L'ajout d'un nouvel indicateur = une nouvelle classe + un gabarit d'affichage : aucune
 modification du reste de l'application. Les tests vérifieront les règles documentées
@@ -215,7 +219,10 @@ personne » après enregistrement, correction immédiate d'une ligne récente.
 
 Prévu dans un second temps, l'architecture le rend simple : les tables GA étant déjà en
 base, un connecteur GA4 (compte de service Google, fichier de clé local) viendra
-alimenter les mêmes tables via l'API `google-analytics-data`. Un écran permettra de
+alimenter les mêmes tables via l'API `google-analytics-data` (la disponibilité
+des requêtes de recherche dans cette API reste à vérifier lors de cette
+étape : les dimensions exposées par l'API pourront différer du relevé
+manuel). Un écran permettra de
 lancer une récupération manuelle et de voir la date du dernier relevé ; une exécution
 mensuelle automatique pourra être ajoutée ensuite. La première année, l'import manuel
 du classeur servira de relais.
@@ -224,8 +231,8 @@ du classeur servira de relais.
 
 | Étape | Contenu | Tests associés |
 |---|---|---|
-| 1 | Socle : base SQLite, référentiels, import initial du classeur | import sans doublon, valeurs témoins |
-| 2 | Moteur de calcul des KPI existants | fidélité aux règles documentées (prospects, demandes, ghosting, RDV) |
+| 1 | Socle : base SQLite, référentiels, import initial du classeur | import sans doublon, valeurs témoins — **terminé** |
+| 2 | Moteur de calcul des KPI existants | fidélité aux règles documentées (prospects, demandes, ghosting, RDV) — **terminé** |
 | 3 | Écran de saisie du suivi | validation des champs, création de personne |
 | 4 | Écrans de consultation KPI + export PDF | rendu des périodes, contenu PDF |
 | 5 | Connecteur GA4 | mois de test, idempotence des rechargements |
@@ -233,7 +240,8 @@ du classeur servira de relais.
 
 ## Points à valider avant de démarrer
 
-- la règle « réponse d'un contact » proposée ci-dessus (seul point restant à trancher
-  avant l'étape 2) ;
-- le parcours de saisie (étape 3) sera validé avec Cécile avant le développement de
-  l'interface.
+Tous les points de cadrage ont été actés le 28 octobre 2026 (interface,
+environnement, accès GA4, indicateurs reportés, règle « réponse »). Le
+parcours de saisie (étape 3) sera validé avec Cécile avant le développement
+de l'interface ; la classification des « Relances » comme action du
+photographe sera confirmée à cette occasion.
