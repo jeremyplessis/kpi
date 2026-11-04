@@ -120,7 +120,24 @@ class BaseDonnees:
         self.connexion.executescript(SCHEMA)
         self.connexion.commit()
 
-    def fermer(self) -> None:
-        """Valide les opérations en cours et ferme la connexion."""
+    def valider(self) -> None:
+        """Valide durablement les modifications en cours (COMMIT).
+
+        À appeler explicitement après une écriture : la validation ne se
+        fait plus implicitement à la fermeture, afin qu'un incident ne
+        laisse jamais persister une écriture partielle.
+        """
         self.connexion.commit()
+
+    def annuler(self) -> None:
+        """Annule les modifications en cours (ROLLBACK)."""
+        self.connexion.rollback()
+
+    def fermer(self) -> None:
+        """Ferme la connexion sans valider.
+
+        Les modifications non validées par :meth:`valider` sont perdues :
+        c'est le comportement voulu pour ne jamais persister un état
+        incohérent par accident.
+        """
         self.connexion.close()

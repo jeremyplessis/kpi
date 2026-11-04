@@ -114,9 +114,9 @@ class ImportateurClasseur:
         except Exception:
             # Annule tout l'import (y compris la suppression de l'ancien
             # suivi) : la base reste dans son état initial.
-            self._base.connexion.rollback()
+            self._base.annuler()
             raise
-        self._base.connexion.commit()
+        self._base.valider()
         return self._rapport
 
     def _importer_listes(self, _onglet) -> None:

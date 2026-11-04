@@ -29,6 +29,8 @@ class EvenementSuivi:
     action_photographe: str | None = None
     canal2: str | None = None
     commentaire: str | None = None
+    #: Identifiant en base, renseigné à la lecture (vide pour un nouvel événement).
+    id: int | None = None
 
     @property
     def annee(self) -> int:

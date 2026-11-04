@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titre %}Suivi d'activité{% endblock %}</title>
+  <style>
+    :root {
+      --encre: #2a2520;
+      --encre-doux: #6f675e;
+      --fond: #f6f3ee;
+      --carte: #ffffff;
+      --bord: #e5dfd6;
+      --accent: #b4593b;
+      --accent-fonce: #93452c;
+      --succes-fond: #edf5ec;
+      --succes-bord: #7fae7a;
+      --succes-texte: #35602f;
+      --erreur-fond: #f9ede9;
+      --erreur-bord: #d99a89;
+      --erreur-texte: #8c3418;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--encre);
+      background: var(--fond);
+      line-height: 1.5;
+    }
+    .conteneur { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+    header.entete {
+      display: flex; align-items: baseline; gap: .75rem;
+      padding: .25rem 0 1.25rem;
+    }
+    header.entete h1 { font-size: 1.35rem; margin: 0; letter-spacing: .01em; }
+    header.entete .sous-titre { color: var(--encre-doux); font-size: .9rem; }
+    .carte {
+      background: var(--carte);
+      border: 1px solid var(--bord);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(42, 37, 32, .06);
+    }
+    .bandeau {
+      border-radius: 10px; padding: .8rem 1rem; margin-bottom: 1.25rem;
+      font-size: .95rem;
+    }
+    .bandeau-succes {
+      background: var(--succes-fond); border: 1px solid var(--succes-bord);
+      color: var(--succes-texte);
+    }
+    .bandeau-succes a { color: inherit; font-weight: 600; }
+    .bandeau-erreur {
+      background: var(--erreur-fond); border: 1px solid var(--erreur-bord);
+      color: var(--erreur-texte);
+    }
+    fieldset { border: none; padding: 0; margin: 0 0 1.5rem; }
+    legend {
+      font-size: .8rem; text-transform: uppercase; letter-spacing: .08em;
+      color: var(--accent); font-weight: 600; margin-bottom: .6rem;
+    }
+    .grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; }
+    label { display: block; font-size: .9rem; margin-bottom: .3rem; color: var(--encre); }
+    input, select, textarea {
+      width: 100%; padding: .5rem .65rem;
+      border: 1px solid var(--bord); border-radius: 8px;
+      font: inherit; color: var(--encre); background: #fff;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent);
+    }
+    .message-erreur { color: var(--erreur-texte); font-size: .82rem; margin-top: .25rem; }
+    .champ-erreur input, .champ-erreur select {
+      border-color: var(--erreur-bord); background: var(--erreur-fond);
+    }
+    .aide { color: var(--encre-doux); font-size: .82rem; margin-top: .25rem; }
+    textarea { resize: vertical; min-height: 4.5rem; }
+    .actions { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+    button.primaire {
+      background: var(--accent); color: #fff; border: none;
+      border-radius: 8px; padding: .6rem 1.4rem; font: inherit; font-weight: 600;
+      cursor: pointer;
+    }
+    button.primaire:hover { background: var(--accent-fonce); }
+    a.discret { color: var(--encre-doux); font-size: .9rem; }
+    h2.section { font-size: 1.05rem; margin: 0 0 .75rem; }
+    .defilement { overflow-x: auto; }
+    table {
+      border-collapse: collapse; width: 100%; min-width: 40rem; font-size: .9rem;
+    }
+    th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--bord); white-space: nowrap; }
+    th { color: var(--encre-doux); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; }
+    td.commentaire { white-space: normal; min-width: 12rem; max-width: 22rem; }
+    td a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    td a:hover { text-decoration: underline; }
+    .vide { color: var(--encre-doux); font-size: .9rem; }
+    @media (max-width: 640px) {
+      .conteneur { padding: 1rem .75rem 2rem; }
+      .carte { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="conteneur">
+    <header class="entete">
+      <h1>Suivi d'activité</h1>
+      <span class="sous-titre">saisie des contacts et prospects</span>
+    </header>
+    {% block contenu %}{% endblock %}
+  </div>
+</body>
+</html>

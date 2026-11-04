@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block titre %}Suivi d'activité — saisie{% endblock %}
+
+{% macro champ_select(_nom, _libelle, _options, _valeur) %}
+<div class="{% if erreurs is defined and erreurs.get(_nom) %}champ-erreur{% endif %}">
+  <label for="{{ _nom }}">{{ _libelle }}</label>
+  <select id="{{ _nom }}" name="{{ _nom }}">
+    <option value="">—</option>
+    {% for _option in _options %}
+    <option value="{{ _option }}" {% if _option == _valeur %}selected{% endif %}>{{ _option }}</option>
+    {% endfor %}
+    {% if _valeur and _valeur not in _options %}
+    <option value="{{ _valeur }}" selected>{{ _valeur }}</option>
+    {% endif %}
+  </select>
+</div>
+{% endmacro %}
+
+{% block contenu %}
+
+{% if message_enregistrement %}
+<div class="bandeau bandeau-succes">
+  Événement enregistré. Le formulaire est prêt pour un nouvel événement concernant
+  <strong>{{ valeurs.personne }}</strong> —
+  <a href="/">nouvelle personne</a>
+</div>
+{% endif %}
+
+{% if erreurs is defined and erreurs %}
+<div class="bandeau bandeau-erreur">
+  Le formulaire n'a pas été enregistré : corrigez les champs signalés ci-dessous.
+</div>
+{% endif %}
+
+<div class="carte">
+  {% if identifiant is defined %}
+  <h2 class="section">Modifier un événement</h2>
+  {% else %}
+  <h2 class="section">Nouvel événement</h2>
+  {% endif %}
+
+  <form method="post"
+        action="{% if identifiant is defined %}/evenements/{{ identifiant }}/modifier{% else %}/evenements{% endif %}"
+        novalidate>
+
+    <fieldset>
+      <legend>Qui et quand</legend>
+      <div class="grille">
+        <div class="{% if erreurs is defined and erreurs.get('date') %}champ-erreur{% endif %}">
+          <label for="date">Date</label>
+          <input type="date" id="date" name="date" value="{{ valeurs.date }}" required>
+          {% if erreurs is defined and erreurs.get('date') %}
+          <p class="message-erreur">{{ erreurs.date }}</p>
+          {% endif %}
+        </div>
+        <div class="{% if erreurs is defined and erreurs.get('personne') %}champ-erreur{% endif %}">
+          <label for="personne">Personne</label>
+          <input type="text" id="personne" name="personne" list="personnes"
+                 value="{{ valeurs.personne }}" required autocomplete="off">
+          <datalist id="personnes">
+            {% for _personne in personnes %}
+            <option value="{{ _personne }}"></option>
+            {% endfor %}
+          </datalist>
+          <p class="aide">Un nom absent de la liste sera créé automatiquement.</p>
+          {% if erreurs is defined and erreurs.get('personne') %}
+          <p class="message-erreur">{{ erreurs.personne }}</p>
+          {% endif %}
+        </div>
+        {{ champ_select('statut_contact', 'Statut', referentiels.statut_contact, valeurs.statut_contact) }}
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>La demande</legend>
+      <div class="grille">
+        {{ champ_select('prestation', 'Prestation', referentiels.prestation, valeurs.prestation) }}
+        {{ champ_select('detail_prestation', 'Détail', referentiels.detail_prestation, valeurs.detail_prestation) }}
+        {{ champ_select('action_public', 'Action du contact', referentiels.action, valeurs.action_public) }}
+        {{ champ_select('canal', 'Canal du contact', referentiels.canal, valeurs.canal) }}
+        {{ champ_select('provenance', 'Provenance', referentiels.provenance, valeurs.provenance) }}
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>La réponse de la photographe</legend>
+      <div class="grille">
+        {{ champ_select('action_photographe', 'Action de la photographe', referentiels.action, valeurs.action_photographe) }}
+        {{ champ_select('canal2', 'Canal de réponse', referentiels.canal, valeurs.canal2) }}
+      </div>
+      <label for="commentaire">Commentaire</label>
+      <textarea id="commentaire" name="commentaire">{{ valeurs.commentaire }}</textarea>
+    </fieldset>
+
+    <div class="actions">
+      <button type="submit" class="primaire">
+        {% if identifiant is defined %}Enregistrer la correction{% else %}Enregistrer l'événement{% endif %}
+      </button>
+      <a class="discret" href="/">Tout effacer</a>
+    </div>
+  </form>
+</div>
+
+<div class="carte">
+  <h2 class="section">Derniers événements</h2>
+  {% if evenements %}
+  <div class="defilement">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Personne</th>
+          <th>Statut</th>
+          <th>Action du contact</th>
+          <th>Canal</th>
+          <th>Photographe</th>
+          <th>Commentaire</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for _evenement in evenements %}
+        <tr>
+          <td>{{ _evenement.date | date_fr }}</td>
+          <td>{{ _evenement.personne }}</td>
+          <td>{{ _evenement.statut_contact or "" }}</td>
+          <td>{{ _evenement.action_public or "" }}</td>
+          <td>{{ _evenement.canal or "" }}</td>
+          <td>{{ _evenement.action_photographe or "" }}</td>
+          <td class="commentaire">{{ _evenement.commentaire or "" }}</td>
+          <td>
+            <a href="/evenements/{{ _evenement.id }}/modifier">Modifier</a>
+            <a href="/evenements/{{ _evenement.id }}/supprimer">Supprimer</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vide">Aucun événement pour l'instant : le tableau se remplira dès la première saisie.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

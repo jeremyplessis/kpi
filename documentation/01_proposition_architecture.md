@@ -233,7 +233,7 @@ du classeur servira de relais.
 |---|---|---|
 | 1 | Socle : base SQLite, référentiels, import initial du classeur | import sans doublon, valeurs témoins — **terminé** |
 | 2 | Moteur de calcul des KPI existants | fidélité aux règles documentées (prospects, demandes, ghosting, RDV) — **terminé** |
-| 3 | Écran de saisie du suivi | validation des champs, création de personne |
+| 3 | Écran de saisie du suivi | validation des champs, création de personne, correction, suppression, protection des requêtes croisées — **terminé** |
 | 4 | Écrans de consultation KPI + export PDF | rendu des périodes, contenu PDF |
 | 5 | Connecteur GA4 | mois de test, idempotence des rechargements |
 | 6 | Indicateurs reportés (visiteurs GA, conversions) et documentation complète | selon les règles définies alors |
@@ -242,6 +242,6 @@ du classeur servira de relais.
 
 Tous les points de cadrage ont été actés le 28 octobre 2026 (interface,
 environnement, accès GA4, indicateurs reportés, règle « réponse »). Le
-parcours de saisie (étape 3) sera validé avec Cécile avant le développement
-de l'interface ; la classification des « Relances » comme action du
-photographe sera confirmée à cette occasion.
+parcours de saisie (étape 3) a été développé et sera validé avec Cécile
+lors des tests utilisateurs ; la classification des « Relances » comme
+action du photographe sera confirmée à cette occasion.

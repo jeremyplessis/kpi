@@ -158,11 +158,9 @@ class SuiviRepository:
             return None
         return self._referentiels.obtenir_ou_creer(_table, str(_valeur).strip())
 
-    def lister(self) -> list[EvenementSuivi]:
-        """Retourne tous les événements du suivi, triés par date."""
-        _curseur = self._base.connexion.execute(
-            """
-            SELECT s.date, p.nom AS personne, sc.nom AS statut_contact,
+    #: Requête de lecture commune (création, liste, modification, suppression).
+    REQUETE_LECTURE = """
+            SELECT s.id, s.date, p.nom AS personne, sc.nom AS statut_contact,
                    ap.nom AS action_public, c1.nom AS canal,
                    pr.nom AS provenance, pe.nom AS prestation,
                    dp.nom AS detail_prestation, aph.nom AS action_photographe,
@@ -177,27 +175,82 @@ class SuiviRepository:
             LEFT JOIN detail_prestation dp ON dp.id = s.detail_prestation_id
             LEFT JOIN action aph ON aph.id = s.action_photographe_id
             LEFT JOIN canal c2 ON c2.id = s.canal2_id
-            ORDER BY s.date, p.nom
             """
+
+    def lister(self) -> list[EvenementSuivi]:
+        """Retourne tous les événements du suivi, triés par date."""
+        _curseur = self._base.connexion.execute(self.REQUETE_LECTURE)
+        return [self._vers_evenement(_ligne) for _ligne in _curseur.fetchall()]
+
+    def _vers_evenement(self, _ligne) -> EvenementSuivi:
+        """Construit un événement depuis une ligne de lecture SQL."""
+        return EvenementSuivi(
+            id=_ligne["id"],
+            date=date.fromisoformat(_ligne["date"]),
+            personne=_ligne["personne"],
+            statut_contact=_ligne["statut_contact"],
+            action_public=_ligne["action_public"],
+            canal=_ligne["canal"],
+            provenance=_ligne["provenance"],
+            prestation=_ligne["prestation"],
+            detail_prestation=_ligne["detail_prestation"],
+            action_photographe=_ligne["action_photographe"],
+            canal2=_ligne["canal2"],
+            commentaire=_ligne["commentaire"],
         )
-        _evenements = []
-        for _ligne in _curseur.fetchall():
-            _evenements.append(
-                EvenementSuivi(
-                    date=date.fromisoformat(_ligne["date"]),
-                    personne=_ligne["personne"],
-                    statut_contact=_ligne["statut_contact"],
-                    action_public=_ligne["action_public"],
-                    canal=_ligne["canal"],
-                    provenance=_ligne["provenance"],
-                    prestation=_ligne["prestation"],
-                    detail_prestation=_ligne["detail_prestation"],
-                    action_photographe=_ligne["action_photographe"],
-                    canal2=_ligne["canal2"],
-                    commentaire=_ligne["commentaire"],
-                )
-            )
-        return _evenements
+
+    def obtenir(self, _identifiant: int) -> EvenementSuivi | None:
+        """Retourne l'événement portant cet identifiant, ou None s'il n'existe pas."""
+        _curseur = self._base.connexion.execute(
+            self.REQUETE_LECTURE + " WHERE s.id = ?",
+            (_identifiant,),
+        )
+        _ligne = _curseur.fetchone()
+        return self._vers_evenement(_ligne) if _ligne else None
+
+    def mettre_a_jour(self, _identifiant: int, _evenement: EvenementSuivi) -> None:
+        """Remplace le contenu d'un événement existant.
+
+        :raises ValueError: si aucun événement ne porte cet identifiant.
+        """
+        if self.obtenir(_identifiant) is None:
+            raise ValueError(f"Événement inconnu : {_identifiant}")
+        _personne_id = self._personnes.obtenir_ou_creer(_evenement.personne)
+        self._base.connexion.execute(
+            """
+            UPDATE suivi_activite SET
+                date = ?, personne_id = ?, statut_contact_id = ?,
+                action_public_id = ?, canal_id = ?, provenance_id = ?,
+                prestation_id = ?, detail_prestation_id = ?,
+                action_photographe_id = ?, canal2_id = ?, commentaire = ?
+            WHERE id = ?
+            """,
+            (
+                _evenement.date.isoformat(),
+                _personne_id,
+                self._id_referentiel("statut_contact", _evenement.statut_contact),
+                self._id_referentiel("action", _evenement.action_public),
+                self._id_referentiel("canal", _evenement.canal),
+                self._id_referentiel("provenance", _evenement.provenance),
+                self._id_referentiel("prestation", _evenement.prestation),
+                self._id_referentiel("detail_prestation", _evenement.detail_prestation),
+                self._id_referentiel("action", _evenement.action_photographe),
+                self._id_referentiel("canal", _evenement.canal2),
+                _evenement.commentaire,
+                _identifiant,
+            ),
+        )
+
+    def supprimer(self, _identifiant: int) -> None:
+        """Supprime définitivement un événement.
+
+        :raises ValueError: si aucun événement ne porte cet identifiant.
+        """
+        _curseur = self._base.connexion.execute(
+            "DELETE FROM suivi_activite WHERE id = ?", (_identifiant,)
+        )
+        if _curseur.rowcount == 0:
+            raise ValueError(f"Événement inconnu : {_identifiant}")
 
     def compter(self) -> int:
         """Retourne le nombre total d'événements enregistrés."""

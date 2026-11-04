@@ -10,7 +10,7 @@ entrepreneurs individuels (en cours de développement : voir
 |---|---|---|
 | 1 | Base SQLite, référentiels, import du classeur | Terminé |
 | 2 | Moteur de calcul des indicateurs existants | Terminé |
-| 3 | Écran de saisie du suivi | À venir |
+| 3 | Écran de saisie du suivi | Terminé |
 | 4 | Écrans de consultation KPI + export PDF | À venir |
 | 5 | Connecteur Google Analytics 4 | À venir |
 
@@ -27,7 +27,11 @@ python3 -m venv .venv
 .venv/bin/python -m outils.import_initial chemin/vers/KPI.xlsx [chemin/base.sqlite3]
 
 # 3. lancer les tests automatisés
+.venv/bin/pip install -e ".[dev]"   # une seule fois : ajoute httpx, requis par les tests web
 .venv/bin/python -m unittest discover -s tests
+
+# 4. lancer l'application (le navigateur s'ouvre sur l'écran de saisie)
+.venv/bin/kpi
 ```
 
 Sous Linux, `source .venv/bin/activate` permet ensuite d'utiliser `python`
@@ -42,7 +46,8 @@ dossier `documentation/` :
   témoins ;
 - `01_proposition_architecture.md` : architecture de l'application et
   décisions actées ;
-- `02_import_initial.md` : guide de l'import du classeur et des tests.
+- `02_import_initial.md` : guide de l'import du classeur et des tests ;
+- `03_ecran_saisie.md` : guide de l'écran de saisie du suivi.
 
 ## Conventions de code
 

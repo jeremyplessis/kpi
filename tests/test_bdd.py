@@ -60,6 +60,7 @@ class TestBaseDonnees(unittest.TestCase):
             try:
                 _referentiels = ReferentielRepository(_base)
                 _referentiels.obtenir_ou_creer("canal", "mail")
+                _base.valider()
             finally:
                 _base.fermer()
             _base = BaseDonnees(_chemin)
