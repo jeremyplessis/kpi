@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block titre %}Suivi d'activité — listes{% endblock %}
+
+{% block contenu %}
+
+{% if message %}
+<div class="bandeau bandeau-succes">{{ message }}</div>
+{% endif %}
+
+<div class="carte">
+  <h2 class="section">Valeurs des listes déroulantes</h2>
+  <p class="aide">
+    Ces valeurs alimentent les listes du formulaire de saisie. Retirer une
+    valeur utilisée par des événements ne les modifie pas : ils conservent
+    leur contenu, et la valeur peut être remise dans la liste à tout moment
+    en la réajoutant.
+  </p>
+
+  {% for _liste in listes %}
+  <div class="bloc-liste">
+    <h3>{{ _liste.libelle }}</h3>
+    {% if _liste.valeurs %}
+    <div class="defilement">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Valeur</th>
+            <th scope="col">Utilisée par</th>
+            <th scope="col">Renommer en</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for _valeur in _liste.valeurs %}
+          <tr>
+            <td>{{ _valeur.nom }}</td>
+            <td>
+              {% if _valeur.utilisation %}
+              {{ _valeur.utilisation }} événement(s)
+              {% else %}
+              <span class="encre-doux">aucun événement</span>
+              {% endif %}
+            </td>
+            <td class="actions-ligne">
+              <form class="en-ligne" method="post" action="/listes/renommer">
+                <input type="hidden" name="table" value="{{ _liste.cle }}">
+                <input type="hidden" name="ancienne" value="{{ _valeur.nom }}">
+                <input type="text" name="nouvelle" placeholder="Nouveau nom"
+                       aria-label="Nouveau nom pour {{ _valeur.nom }}">
+                <button type="submit" class="secondaire">Renommer</button>
+              </form>
+              <form class="en-ligne" method="post" action="/listes/retirer">
+                <input type="hidden" name="table" value="{{ _liste.cle }}">
+                <input type="hidden" name="ancienne" value="{{ _valeur.nom }}">
+                <button type="submit" class="secondaire discret-bouton">Retirer</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="vide">Cette liste est vide pour l'instant.</p>
+    {% endif %}
+
+    <form class="en-ligne ajout-liste" method="post" action="/listes/ajouter">
+      <input type="hidden" name="table" value="{{ _liste.cle }}">
+      <input type="text" name="valeur" placeholder="Nouvelle valeur…"
+             aria-label="Nouvelle valeur pour {{ _liste.libelle }}">
+      <button type="submit" class="secondaire">Ajouter</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
