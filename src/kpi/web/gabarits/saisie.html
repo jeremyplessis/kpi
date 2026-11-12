@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block titre %}Suivi d'activité — saisie{% endblock %}
+
+{% macro champ_select(_nom, _libelle, _options, _valeur) %}
+<div class="{% if erreurs is defined and erreurs.get(_nom) %}champ-erreur{% endif %}">
+  <label for="{{ _nom }}">{{ _libelle }}</label>
+  <select id="{{ _nom }}" name="{{ _nom }}">
+    <option value="">—</option>
+    {% for _option in _options %}
+    <option value="{{ _option }}" {% if _option == _valeur %}selected{% endif %}>{{ _option }}</option>
+    {% endfor %}
+    {% if _valeur and _valeur not in _options %}
+    <option value="{{ _valeur }}" selected>{{ _valeur }}</option>
+    {% endif %}
+  </select>
+</div>
+{% endmacro %}
+
+{% macro en_tete_tri(_nom, _libelle) %}
+<th scope="col">
+  <a class="tri" href="{{ tris[_nom] }}">
+    {{ _libelle }}
+    {% if tri_actif == _nom %}
+    <span class="fleche" aria-label="Tri actif">{{ "▼" if sens_actif == "desc" else "▲" }}</span>
+    {% endif %}
+  </a>
+</th>
+{% endmacro %}
+
+{% block contenu %}
+
+<div class="disposition">
+
+<div class="colonne-saisie">
+
+{% if message_enregistrement %}
+<div class="bandeau bandeau-succes">
+  Événement enregistré. Le formulaire est prêt pour un nouvel événement concernant
+  <strong>{{ valeurs.personne }}</strong> —
+  <a href="/">nouvelle personne</a>
+</div>
+{% endif %}
+
+{% if erreurs is defined and erreurs %}
+<div class="bandeau bandeau-erreur">
+  Le formulaire n'a pas été enregistré : corrigez les champs signalés ci-dessous.
+</div>
+{% endif %}
+
+<div class="carte">
+  {% if identifiant is defined %}
+  <h2 class="section">Modifier un événement</h2>
+  {% else %}
+  <h2 class="section">Nouvel événement</h2>
+  {% endif %}
+
+  <form method="post"
+        action="{% if identifiant is defined %}/evenements/{{ identifiant }}/modifier{% else %}/evenements{% endif %}"
+        novalidate>
+
+    <fieldset>
+      <legend>Qui et quand</legend>
+      <div class="grille">
+        <div class="{% if erreurs is defined and erreurs.get('date') %}champ-erreur{% endif %}">
+          <label for="date">Date</label>
+          <input type="date" id="date" name="date" value="{{ valeurs.date }}" required>
+          {% if erreurs is defined and erreurs.get('date') %}
+          <p class="message-erreur">{{ erreurs.date }}</p>
+          {% endif %}
+        </div>
+        <div class="{% if erreurs is defined and erreurs.get('personne') %}champ-erreur{% endif %}">
+          <label for="personne">Personne</label>
+          <input type="text" id="personne" name="personne" list="personnes"
+                 value="{{ valeurs.personne }}" required autocomplete="off">
+          <datalist id="personnes">
+            {% for _personne in personnes %}
+            <option value="{{ _personne }}"></option>
+            {% endfor %}
+          </datalist>
+          <p class="aide">Un nom absent de la liste sera créé automatiquement.</p>
+          {% if erreurs is defined and erreurs.get('personne') %}
+          <p class="message-erreur">{{ erreurs.personne }}</p>
+          {% endif %}
+        </div>
+        {{ champ_select('statut_contact', 'Statut', referentiels.statut_contact, valeurs.statut_contact) }}
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>La demande</legend>
+      <div class="grille">
+        {{ champ_select('prestation', 'Prestation', referentiels.prestation, valeurs.prestation) }}
+        {{ champ_select('detail_prestation', 'Détail', referentiels.detail_prestation, valeurs.detail_prestation) }}
+        {{ champ_select('action_public', 'Action du contact', referentiels.action, valeurs.action_public) }}
+        {{ champ_select('canal', 'Canal du contact', referentiels.canal, valeurs.canal) }}
+        {{ champ_select('provenance', 'Provenance', referentiels.provenance, valeurs.provenance) }}
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>La réponse de la photographe</legend>
+      <div class="grille">
+        {{ champ_select('action_photographe', 'Action de la photographe', referentiels.action, valeurs.action_photographe) }}
+        {{ champ_select('canal2', 'Canal de réponse', referentiels.canal, valeurs.canal2) }}
+      </div>
+      <label for="commentaire">Commentaire</label>
+      <textarea id="commentaire" name="commentaire">{{ valeurs.commentaire }}</textarea>
+    </fieldset>
+
+    <div class="actions">
+      <button type="submit" class="primaire">
+        {% if identifiant is defined %}Enregistrer la correction{% else %}Enregistrer l'événement{% endif %}
+      </button>
+      <a class="discret" href="/">Tout effacer</a>
+      <a class="discret" href="/listes">Gérer les listes</a>
+    </div>
+  </form>
+</div>
+
+</div>
+
+<div class="colonne-liste">
+
+<div class="carte">
+  <h2 class="section">Derniers événements</h2>
+  <form class="filtres" method="get" action="/">
+    <input type="text" name="filtre_personne" placeholder="Personne…"
+           value="{{ filtres.filtre_personne }}" aria-label="Filtrer par personne">
+    <input type="text" name="filtre_statut" placeholder="Statut…"
+           value="{{ filtres.filtre_statut }}" aria-label="Filtrer par statut">
+    <input type="text" name="filtre_action" placeholder="Action…"
+           value="{{ filtres.filtre_action }}" aria-label="Filtrer par action">
+    <input type="text" name="filtre_canal" placeholder="Canal…"
+           value="{{ filtres.filtre_canal }}" aria-label="Filtrer par canal">
+    <input type="text" name="filtre_photographe" placeholder="Photographe…"
+           value="{{ filtres.filtre_photographe }}" aria-label="Filtrer par action de la photographe">
+    <input type="text" name="filtre_commentaire" placeholder="Commentaire…"
+           value="{{ filtres.filtre_commentaire }}" aria-label="Filtrer par commentaire">
+    <button type="submit" class="secondaire">Filtrer</button>
+    <a class="discret" href="/">Effacer les filtres</a>
+  </form>
+  {% if evenements %}
+  <div class="defilement">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col"><span class="visuellement-cache">Actions</span></th>
+          {{ en_tete_tri('date', 'Date') }}
+          {{ en_tete_tri('personne', 'Personne') }}
+          {{ en_tete_tri('statut_contact', 'Statut') }}
+          {{ en_tete_tri('action_public', 'Action du contact') }}
+          {{ en_tete_tri('canal', 'Canal') }}
+          {{ en_tete_tri('action_photographe', 'Photographe') }}
+          {{ en_tete_tri('commentaire', 'Commentaire') }}
+        </tr>
+      </thead>
+      <tbody>
+        {% for _evenement in evenements %}
+        <tr>
+          <td class="actions-ligne">
+            <a href="/evenements/{{ _evenement.id }}/modifier">Modifier</a>
+            <a href="/evenements/{{ _evenement.id }}/supprimer">Supprimer</a>
+          </td>
+          <td>{{ _evenement.date | date_fr }}</td>
+          <td>{{ _evenement.personne }}</td>
+          <td>{{ _evenement.statut_contact or "" }}</td>
+          <td>{{ _evenement.action_public or "" }}</td>
+          <td>{{ _evenement.canal or "" }}</td>
+          <td>{{ _evenement.action_photographe or "" }}</td>
+          <td class="commentaire">{{ _evenement.commentaire or "" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  {% set _filtres_actifs = filtres.values() | join("") | trim %}
+  {% if _filtres_actifs %}
+  <p class="vide">Aucun événement ne correspond aux filtres actuels.</p>
+  {% else %}
+  <p class="vide">Aucun événement pour l'instant : le tableau se remplira dès la première saisie.</p>
+  {% endif %}
+  {% endif %}
+</div>
+
+</div>
+
+</div>
+
+{% endblock %}

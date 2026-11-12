@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titre %}Supprimer un événement{% endblock %}
+
+{% block contenu %}
+
+<div class="carte">
+  <h2 class="section">Confirmer la suppression</h2>
+  <p>
+    Supprimer définitivement l'événement du <strong>{{ evenement.date | date_fr }}</strong>
+    concernant <strong>{{ evenement.personne }}</strong>
+    {% if evenement.action_public %}(action du contact : {{ evenement.action_public }}){% endif %} ?
+  </p>
+  <p class="aide">Cette action est irréversible.</p>
+  <form method="post" action="/evenements/{{ identifiant }}/supprimer">
+    <div class="actions">
+      <button type="submit" class="primaire">Oui, supprimer</button>
+      <a class="discret" href="/">Non, revenir à la saisie</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
