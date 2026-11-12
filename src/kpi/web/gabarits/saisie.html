@@ -16,7 +16,22 @@
 </div>
 {% endmacro %}
 
+{% macro en_tete_tri(_nom, _libelle) %}
+<th scope="col">
+  <a class="tri" href="{{ tris[_nom] }}">
+    {{ _libelle }}
+    {% if tri_actif == _nom %}
+    <span class="fleche" aria-label="Tri actif">{{ "▼" if sens_actif == "desc" else "▲" }}</span>
+    {% endif %}
+  </a>
+</th>
+{% endmacro %}
+
 {% block contenu %}
+
+<div class="disposition">
+
+<div class="colonne-saisie">
 
 {% if message_enregistrement %}
 <div class="bandeau bandeau-succes">
@@ -97,30 +112,55 @@
         {% if identifiant is defined %}Enregistrer la correction{% else %}Enregistrer l'événement{% endif %}
       </button>
       <a class="discret" href="/">Tout effacer</a>
+      <a class="discret" href="/listes">Gérer les listes</a>
     </div>
   </form>
 </div>
 
+</div>
+
+<div class="colonne-liste">
+
 <div class="carte">
   <h2 class="section">Derniers événements</h2>
+  <form class="filtres" method="get" action="/">
+    <input type="text" name="filtre_personne" placeholder="Personne…"
+           value="{{ filtres.filtre_personne }}" aria-label="Filtrer par personne">
+    <input type="text" name="filtre_statut" placeholder="Statut…"
+           value="{{ filtres.filtre_statut }}" aria-label="Filtrer par statut">
+    <input type="text" name="filtre_action" placeholder="Action…"
+           value="{{ filtres.filtre_action }}" aria-label="Filtrer par action">
+    <input type="text" name="filtre_canal" placeholder="Canal…"
+           value="{{ filtres.filtre_canal }}" aria-label="Filtrer par canal">
+    <input type="text" name="filtre_photographe" placeholder="Photographe…"
+           value="{{ filtres.filtre_photographe }}" aria-label="Filtrer par action de la photographe">
+    <input type="text" name="filtre_commentaire" placeholder="Commentaire…"
+           value="{{ filtres.filtre_commentaire }}" aria-label="Filtrer par commentaire">
+    <button type="submit" class="secondaire">Filtrer</button>
+    <a class="discret" href="/">Effacer les filtres</a>
+  </form>
   {% if evenements %}
   <div class="defilement">
     <table>
       <thead>
         <tr>
-          <th>Date</th>
-          <th>Personne</th>
-          <th>Statut</th>
-          <th>Action du contact</th>
-          <th>Canal</th>
-          <th>Photographe</th>
-          <th>Commentaire</th>
-          <th></th>
+          <th scope="col"><span class="visuellement-cache">Actions</span></th>
+          {{ en_tete_tri('date', 'Date') }}
+          {{ en_tete_tri('personne', 'Personne') }}
+          {{ en_tete_tri('statut_contact', 'Statut') }}
+          {{ en_tete_tri('action_public', 'Action du contact') }}
+          {{ en_tete_tri('canal', 'Canal') }}
+          {{ en_tete_tri('action_photographe', 'Photographe') }}
+          {{ en_tete_tri('commentaire', 'Commentaire') }}
         </tr>
       </thead>
       <tbody>
         {% for _evenement in evenements %}
         <tr>
+          <td class="actions-ligne">
+            <a href="/evenements/{{ _evenement.id }}/modifier">Modifier</a>
+            <a href="/evenements/{{ _evenement.id }}/supprimer">Supprimer</a>
+          </td>
           <td>{{ _evenement.date | date_fr }}</td>
           <td>{{ _evenement.personne }}</td>
           <td>{{ _evenement.statut_contact or "" }}</td>
@@ -128,18 +168,23 @@
           <td>{{ _evenement.canal or "" }}</td>
           <td>{{ _evenement.action_photographe or "" }}</td>
           <td class="commentaire">{{ _evenement.commentaire or "" }}</td>
-          <td>
-            <a href="/evenements/{{ _evenement.id }}/modifier">Modifier</a>
-            <a href="/evenements/{{ _evenement.id }}/supprimer">Supprimer</a>
-          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% else %}
+  {% set _filtres_actifs = filtres.values() | join("") | trim %}
+  {% if _filtres_actifs %}
+  <p class="vide">Aucun événement ne correspond aux filtres actuels.</p>
+  {% else %}
   <p class="vide">Aucun événement pour l'instant : le tableau se remplira dès la première saisie.</p>
   {% endif %}
+  {% endif %}
+</div>
+
+</div>
+
 </div>
 
 {% endblock %}

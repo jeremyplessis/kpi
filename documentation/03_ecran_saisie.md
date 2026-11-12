@@ -32,8 +32,10 @@ arrêter l'application : `Ctrl+C` dans le terminal.
 
 ## L'écran de saisie
 
-L'écran présente un formulaire en trois groupes, calqués sur le classeur
-d'origine :
+L'écran se présente en deux colonnes : le formulaire de saisie à
+gauche, la liste des derniers événements à droite (les deux se
+superposent sur petit écran). Le formulaire est organisé en trois
+groupes, calqués sur le classeur d'origine :
 
 | Groupe | Champs |
 |---|---|
@@ -46,9 +48,10 @@ Points importants :
 - **Personne** : le champ propose les noms déjà connus pendant la
   frappe ; un nom absent de la liste est créé automatiquement, aucune
   manipulation séparée n'est nécessaire ;
-- **Listes déroulantes** : elles reprennent exactement les valeurs du
-  classeur (issues de l'onglet `Listes`) ; une valeur saisie
-  autrefois librement dans le classeur apparaît aussi dans la liste ;
+- **Listes déroulantes** : elles reprennent les valeurs du classeur
+  (issues de l'onglet `Listes`) ; une valeur saisie autrefois
+  librement dans le classeur apparaît aussi dans la liste ; elles sont
+  modifiables à tout moment (voir « Paramétrer les listes » ci-dessous) ;
 - **Enregistrement** : après un enregistrement, le formulaire se
   réinitialise mais **garde le nom de la personne** : pour saisir
   plusieurs événements concernant le même contact, on enchaîne sans
@@ -60,16 +63,50 @@ Points importants :
 
 ## Les derniers événements
 
-Sous le formulaire, le tableau « Derniers événements » affiche les
-saisies les plus récentes. Sur petit écran (téléphone), le tableau se
-parcourt horizontalement avec le doigt.
+À droite du formulaire, le tableau « Derniers événements » affiche les
+interactions les plus récentes **en premier** : c'est le tri par défaut,
+par date d'interaction décroissante. Sur petit écran (téléphone), le
+tableau se parcourt horizontalement avec le doigt.
 
-Chaque ligne offre deux actions :
+Chaque ligne propose, en première colonne à gauche :
 
 - **Modifier** : ré-ouvre le formulaire pré-rempli avec les valeurs de
   l'événement, avec un bouton « Enregistrer la correction » ;
 - **Supprimer** : affiche d'abord un écran de confirmation (date et
   personne concernées), car la suppression est définitive.
+
+### Filtrer et trier
+
+- une barre de filtres au-dessus du tableau permet de ne garder que les
+  lignes correspondant à un texte : personne, statut, action du
+  contact, canal, réponse de la photographe, commentaire. La recherche
+  ne tient pas compte de la casse et porte sur un extrait du texte ;
+  plusieurs filtres se combinent ; le lien « Effacer les filtres »
+  remet la liste à plat ;
+- chaque en-tête de colonne est un lien de tri : cliquer une fois trie
+  par ordre croissant, cliquer à nouveau inverse le sens (une flèche
+  ▲ ou ▼ indique le tri actif). Les filtres restent actifs quand on
+  change de tri, et inversement.
+
+## Paramétrer les listes
+
+La page « Listes » (lien dans le bandeau en haut à droite, ou « Gérer
+les listes » sous le formulaire) permet de maintenir les valeurs des
+listes déroulantes : statuts, prestations, détails, actions, canaux,
+provenances.
+
+- **Ajouter** : la valeur apparaît immédiatement dans les listes du
+  formulaire ;
+- **Renommer** : la nouvelle valeur remplace l'ancienne partout, y
+  compris dans les événements déjà enregistrés (pratique pour corriger
+  une faute de frappe) ;
+- **Retirer** : la valeur disparaît des listes, mais **les événements
+  qui l'utilisent conservent leur contenu** — la page indique
+  combien d'événements sont concernés. Ré-ajouter plus tard le même nom
+  remet la valeur dans la liste.
+
+Chaque valeur affiche le nombre d'événements qui l'utilisent, pour
+décider en connaissance de cause.
 
 ## Garanties et sécurité
 
@@ -86,12 +123,14 @@ Chaque ligne offre deux actions :
 
 ## Tests associés
 
-Les tests automatisés (`tests/test_web.py`, 13 tests) couvrent :
+Les tests automatisés (`tests/test_web.py`, 31 tests) couvrent :
 l'affichage de l'écran, l'enregistrement d'un événement complet, la
 création automatique des personnes et des valeurs libres, le rejet et
 la conservation de la saisie en cas d'erreur, le pré-remplissage du nom
 après enregistrement, la correction par identifiant, l'écran de
 confirmation de suppression, les pages introuvables (404), la protection
-des requêtes croisées, l'échappement du HTML saisi et la réponse au
-format texte. Ils nécessitent le paquet de développement `httpx`
+des requêtes croisées, l'échappement du HTML saisi, le tri par défaut
+par date décroissante, les tris et filtres par colonne, la gestion des
+listes (ajout, renommage suivi par les événements, retrait sans perte,
+réactivation). Ils nécessitent le paquet de développement `httpx`
 (`.venv/bin/pip install -e ".[dev]"`).

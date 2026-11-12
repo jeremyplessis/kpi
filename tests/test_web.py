@@ -275,5 +275,250 @@ class TestEcranSaisie(unittest.TestCase):
         self.assertIn("14/01/2025", _reponse.text)
 
 
+class TestTriEtFiltres(unittest.TestCase):
+    """Tests du tri et des filtres de la liste des événements."""
+
+    def setUp(self) -> None:
+        """Prépare une base avec trois événements à des dates distinctes."""
+        self._dossier = tempfile.TemporaryDirectory()
+        self._chemin_base = Path(self._dossier.name) / "test.sqlite3"
+        _base = BaseDonnees(self._chemin_base)
+        try:
+            _referentiels = ReferentielRepository(_base)
+            for _table, _valeurs in REFERENTIELS_TEST.items():
+                for _valeur in _valeurs:
+                    _referentiels.obtenir_ou_creer(_table, _valeur)
+            _base.valider()
+        finally:
+            _base.fermer()
+        self._application = ApplicationWeb(self._chemin_base)
+        self._client = TestClient(self._application.application)
+        self._client.post(
+            "/evenements",
+            data={"date": "2025-01-14", "personne": "Alice Martin", "action_public": "Demande"},
+        )
+        self._client.post(
+            "/evenements",
+            data={"date": "2025-03-02", "personne": "Bob Dupont", "action_public": "Paiement"},
+        )
+        self._client.post(
+            "/evenements",
+            data={"date": "2025-02-10", "personne": "Chloé Bernard", "action_public": "Réponse"},
+        )
+
+    def tearDown(self) -> None:
+        """Supprime le dossier temporaire."""
+        self._dossier.cleanup()
+
+    def test_tri_par_defaut_date_decroissante(self) -> None:
+        """Sans paramètre, l'interaction la plus récente apparaît en premier."""
+        _reponse = self._client.get("/")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertLess(
+            _reponse.text.index("02/03/2025"),
+            _reponse.text.index("10/02/2025"),
+        )
+        self.assertLess(
+            _reponse.text.index("10/02/2025"),
+            _reponse.text.index("14/01/2025"),
+        )
+
+    def test_tri_croissant_demande(self) -> None:
+        """Le tri explicite croissant inverse l'ordre par défaut."""
+        _reponse = self._client.get("/?tri=date&sens=asc")
+        self.assertLess(
+            _reponse.text.index("14/01/2025"),
+            _reponse.text.index("02/03/2025"),
+        )
+
+    def test_tri_par_personne(self) -> None:
+        """Le tri par personne ordonne les noms alphabétiquement.
+
+        La vérification porte sur les dates des lignes (Alice, Bob puis
+        Chloé), les noms apparaissant aussi dans les suggestions.
+        """
+        _reponse = self._client.get("/?tri=personne&sens=asc")
+        self.assertLess(
+            _reponse.text.index("14/01/2025"),
+            _reponse.text.index("02/03/2025"),
+        )
+        self.assertLess(
+            _reponse.text.index("02/03/2025"),
+            _reponse.text.index("10/02/2025"),
+        )
+
+    def test_tri_colonne_inconnue_ignore(self) -> None:
+        """Une colonne inconnue retombe sur le tri par défaut, sans erreur."""
+        _reponse = self._client.get("/?tri=bidon&sens=desc")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertLess(
+            _reponse.text.index("02/03/2025"),
+            _reponse.text.index("14/01/2025"),
+        )
+
+    def test_filtre_personne_insensible_a_la_casse(self) -> None:
+        """Le filtre personne ne garde que les événements correspondants.
+
+        Les noms apparaissent aussi dans la liste de suggestion du
+        formulaire : la vérification porte sur les dates des lignes.
+        """
+        _reponse = self._client.get("/?filtre_personne=alice")
+        self.assertIn("14/01/2025", _reponse.text)
+        self.assertNotIn("02/03/2025", _reponse.text)
+        self.assertNotIn("10/02/2025", _reponse.text)
+
+    def test_filtre_sans_resultat(self) -> None:
+        """Un filtre sans correspondance affiche un message explicite."""
+        _reponse = self._client.get("/?filtre_personne=inconnu")
+        self.assertIn("Aucun événement ne correspond aux filtres actuels", _reponse.text)
+
+    def test_filtre_conserve_le_tri(self) -> None:
+        """Filtrer et trier se combinent : la plus récente d'abord."""
+        self._client.post(
+            "/evenements",
+            data={"date": "2025-04-05", "personne": "Alice Robert"},
+        )
+        _reponse = self._client.get("/?filtre_personne=alice")
+        self.assertLess(
+            _reponse.text.index("05/04/2025"),
+            _reponse.text.index("14/01/2025"),
+        )
+        self.assertNotIn("02/03/2025", _reponse.text)
+
+    def test_liens_de_tri_dans_l_entete(self) -> None:
+        """Chaque colonne propose un lien de tri, l'active indique le sens."""
+        _reponse = self._client.get("/")
+        self.assertIn('href="/?tri=personne&amp;sens=asc"', _reponse.text)
+        # La colonne active (date, décroissante par défaut) propose l'inverse.
+        self.assertIn('href="/?tri=date&amp;sens=asc"', _reponse.text)
+        self.assertIn("▼", _reponse.text)
+
+
+class TestGestionListes(unittest.TestCase):
+    """Tests de la page de gestion des valeurs des listes déroulantes."""
+
+    def setUp(self) -> None:
+        """Prépare une base et un événement utilisant la valeur « mail »."""
+        self._dossier = tempfile.TemporaryDirectory()
+        self._chemin_base = Path(self._dossier.name) / "test.sqlite3"
+        _base = BaseDonnees(self._chemin_base)
+        try:
+            _referentiels = ReferentielRepository(_base)
+            for _table, _valeurs in REFERENTIELS_TEST.items():
+                for _valeur in _valeurs:
+                    _referentiels.obtenir_ou_creer(_table, _valeur)
+            _base.valider()
+        finally:
+            _base.fermer()
+        self._application = ApplicationWeb(self._chemin_base)
+        self._client = TestClient(self._application.application)
+        self._client.post(
+            "/evenements",
+            data={"date": "2025-01-14", "personne": "Alice Martin", "canal": "mail"},
+        )
+
+    def tearDown(self) -> None:
+        """Supprime le dossier temporaire."""
+        self._dossier.cleanup()
+
+    def test_page_listes(self) -> None:
+        """La page affiche chaque liste, ses valeurs et leur utilisation."""
+        _reponse = self._client.get("/listes")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn("Valeurs des listes déroulantes", _reponse.text)
+        self.assertIn("Canaux", _reponse.text)
+        self.assertIn("mail", _reponse.text)
+        self.assertIn("1 événement", _reponse.text)
+
+    def test_ajout_de_valeur(self) -> None:
+        """Une valeur ajoutée apparaît dans la liste et le formulaire."""
+        _reponse = self._client.post(
+            "/listes/ajouter", data={"table": "canal", "valeur": "tiktok"}
+        )
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn("ajouté à la liste", _reponse.text)
+        _reponse = self._client.get("/listes")
+        self.assertIn("tiktok", _reponse.text)
+        _reponse = self._client.get("/")
+        self.assertIn("tiktok", _reponse.text)
+
+    def test_ajout_de_valeur_vide_refuse(self) -> None:
+        """Une valeur vide est refusée avec un message explicite."""
+        _reponse = self._client.post(
+            "/listes/ajouter", data={"table": "canal", "valeur": "   "}
+        )
+        self.assertIn("ne peut pas être vide", _reponse.text)
+
+    def test_ajout_de_valeur_existante_signale(self) -> None:
+        """Ré-ajouter une valeur existante ne crée pas de doublon."""
+        _reponse = self._client.post(
+            "/listes/ajouter", data={"table": "canal", "valeur": "mail"}
+        )
+        self.assertIn("était déjà", _reponse.text)
+
+    def test_renommage_suivi_par_les_evenements(self) -> None:
+        """Renommer une valeur met à jour l'affichage des événements."""
+        _reponse = self._client.post(
+            "/listes/renommer",
+            data={"table": "canal", "ancienne": "mail", "nouvelle": "courriel"},
+        )
+        self.assertIn("renommé en « courriel »", _reponse.text)
+        # La liste et l'événement existant affichent le nouveau nom.
+        self.assertIn("courriel", self._client.get("/listes").text)
+        _reponse = self._client.get("/")
+        self.assertIn("courriel", _reponse.text)
+        self.assertNotIn(">mail<", _reponse.text)
+
+    def test_renommage_vers_nom_deja_pris_refuse(self) -> None:
+        """Renommer vers une valeur existante est refusé sans changement."""
+        _reponse = self._client.post(
+            "/listes/renommer",
+            data={"table": "canal", "ancienne": "mail", "nouvelle": "instagram"},
+        )
+        self.assertIn("Impossible de renommer", _reponse.text)
+        # L'ancienne valeur est toujours là.
+        self.assertIn("mail", self._client.get("/listes").text)
+
+    def test_retrait_de_valeur_utilisee(self) -> None:
+        """Retirer une valeur utilisée prévient sans toucher aux événements."""
+        _reponse = self._client.post(
+            "/listes/retirer", data={"table": "canal", "ancienne": "mail"}
+        )
+        self.assertIn("retiré de la liste", _reponse.text)
+        self.assertIn("1 événement", _reponse.text)
+        # La valeur disparaît de la page des listes…
+        _reponse = self._client.get("/listes")
+        self.assertNotIn(">mail<", _reponse.text)
+        # …mais l'événement la conserve.
+        _reponse = self._client.get("/")
+        self.assertIn("Alice Martin", _reponse.text)
+        self.assertIn("mail", _reponse.text)
+
+    def test_rajout_reactive_une_valeur_retiree(self) -> None:
+        """Ré-ajouter une valeur retirée la remet dans la liste."""
+        self._client.post("/listes/retirer", data={"table": "canal", "ancienne": "mail"})
+        _reponse = self._client.post(
+            "/listes/ajouter", data={"table": "canal", "valeur": "mail"}
+        )
+        self.assertIn("ajouté à la liste", _reponse.text)
+        self.assertIn("mail", self._client.get("/listes").text)
+
+    def test_liste_inconnue_refusee(self) -> None:
+        """Une table hors référentiels est refusée avec un message clair."""
+        _reponse = self._client.post(
+            "/listes/ajouter", data={"table": "pirate", "valeur": "x"}
+        )
+        self.assertIn("Liste inconnue", _reponse.text)
+
+    def test_ecriture_listes_interdite_depuis_un_autre_site(self) -> None:
+        """Une requête POST avec une origine externe est refusée (403)."""
+        _reponse = self._client.post(
+            "/listes/ajouter",
+            data={"table": "canal", "valeur": "tiktok"},
+            headers={"origin": "http://exemple-mechant.fr", "host": "testserver"},
+        )
+        self.assertEqual(_reponse.status_code, 403)
+
+
 if __name__ == "__main__":
     unittest.main()

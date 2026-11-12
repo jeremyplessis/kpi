@@ -12,7 +12,7 @@ redirection.
 
 from datetime import date
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -51,6 +51,37 @@ CHAMPS_FORMULAIRE = (
     "commentaire",
 )
 
+#: Colonnes triables de la liste des événements (clé -> attribut lu).
+COLONNES_TRI = (
+    "date",
+    "personne",
+    "statut_contact",
+    "action_public",
+    "canal",
+    "action_photographe",
+    "commentaire",
+)
+
+#: Filtres de la liste des événements (paramètre d'URL -> attribut lu).
+FILTRES_LISTE = (
+    ("filtre_personne", "personne"),
+    ("filtre_statut", "statut_contact"),
+    ("filtre_action", "action_public"),
+    ("filtre_canal", "canal"),
+    ("filtre_photographe", "action_photographe"),
+    ("filtre_commentaire", "commentaire"),
+)
+
+#: Libellés conviviaux des listes sur la page de paramétrage.
+LIBELLES_LISTES = {
+    "statut_contact": "Statut du contact",
+    "prestation": "Prestations",
+    "detail_prestation": "Détails de prestation",
+    "action": "Actions (contact et photographe)",
+    "canal": "Canaux",
+    "provenance": "Provenances",
+}
+
 
 def formater_date_fr(_valeur: date | None) -> str:
     """Formate une date en français court (jj/mm/aaaa), vide si absente."""
@@ -88,6 +119,10 @@ class ApplicationWeb:
         _app.post("/evenements/{_identifiant}/modifier")(self.modifier_evenement)
         _app.get("/evenements/{_identifiant}/supprimer")(self.page_supprimer)
         _app.post("/evenements/{_identifiant}/supprimer")(self.supprimer_evenement)
+        _app.get("/listes")(self.page_listes)
+        _app.post("/listes/ajouter")(self.ajouter_valeur_liste)
+        _app.post("/listes/renommer")(self.renommer_valeur_liste)
+        _app.post("/listes/retirer")(self.retirer_valeur_liste)
 
     def _ouvrir_base(self) -> BaseDonnees:
         """Ouvre une connexion vers la base (le schéma est créé au besoin)."""
@@ -238,13 +273,183 @@ class ApplicationWeb:
         return RedirectResponse("/", status_code=303)
 
     # ------------------------------------------------------------------
+    # Paramétrage des listes déroulantes
+    # ------------------------------------------------------------------
+
+    def page_listes(self, _requete: Request):
+        """Affiche les valeurs de chaque liste, avec leur gestion.
+
+        Chaque valeur indique combien d'événements l'utilisent : retirer
+        une valeur utilisée est possible (les événements conservent leur
+        contenu), l'utilisatrice est simplement informée.
+        """
+        _message = _requete.query_params.get("message", "")
+        _base = self._ouvrir_base()
+        try:
+            _referentiels = ReferentielRepository(_base)
+            _listes = []
+            for _table in TABLES_FORMULAIRE:
+                _valeurs = [
+                    {
+                        "nom": _valeur,
+                        "utilisation": _referentiels.compter_utilisation(
+                            _table, _valeur
+                        ),
+                    }
+                    for _valeur in _referentiels.lister(_table)
+                ]
+                _listes.append(
+                    {
+                        "cle": _table,
+                        "libelle": LIBELLES_LISTES[_table],
+                        "valeurs": _valeurs,
+                    }
+                )
+        finally:
+            _base.fermer()
+        return self.modeles.TemplateResponse(
+            _requete,
+            "listes.html",
+            {"requete": _requete, "listes": _listes, "message": _message},
+        )
+
+    async def ajouter_valeur_liste(self, _requete: Request):
+        """Ajoute une valeur à une liste déroulante."""
+        self._verifier_origine(_requete)
+        _formulaire = await _requete.form()
+        _table, _valeur, _message = self._lire_demande_liste(_formulaire)
+        if _message:
+            return self._rediriger_vers_listes(_message)
+        if not _valeur.strip():
+            return self._rediriger_vers_listes(
+                "La valeur à ajouter ne peut pas être vide."
+            )
+        _base = self._ouvrir_base()
+        try:
+            _referentiels = ReferentielRepository(_base)
+            _cree = _referentiels.ajouter(_table, _valeur.strip())
+            _base.valider()
+        except Exception:
+            _base.annuler()
+            raise
+        finally:
+            _base.fermer()
+        return self._rediriger_vers_listes(
+            f"« {_valeur.strip()} » ajouté à la liste {_table}."
+            if _cree
+            else f"« {_valeur.strip()} » était déjà dans la liste {_table}."
+        )
+
+    async def renommer_valeur_liste(self, _requete: Request):
+        """Renomme une valeur : les événements existants suivent le changement."""
+        self._verifier_origine(_requete)
+        _formulaire = await _requete.form()
+        _table, _ancienne, _message = self._lire_demande_liste(
+            _formulaire, champ_valeur="ancienne"
+        )
+        if _message:
+            return self._rediriger_vers_listes(_message)
+        _nouvelle = str(_formulaire.get("nouvelle") or "").strip()
+        if not _ancienne.strip() or not _nouvelle:
+            return self._rediriger_vers_listes(
+                "Le renommage exige l'ancien et le nouveau nom."
+            )
+        _base = self._ouvrir_base()
+        try:
+            _referentiels = ReferentielRepository(_base)
+            _renomme = _referentiels.renommer(
+                _table, _ancienne.strip(), _nouvelle
+            )
+            _base.valider()
+        except Exception:
+            _base.annuler()
+            raise
+        finally:
+            _base.fermer()
+        if _renomme:
+            return self._rediriger_vers_listes(
+                f"« {_ancienne.strip()} » renommé en « {_nouvelle} »."
+            )
+        return self._rediriger_vers_listes(
+            f"Impossible de renommer « {_ancienne.strip()} » : "
+            "valeur introuvable ou nouveau nom déjà pris."
+        )
+
+    async def retirer_valeur_liste(self, _requete: Request):
+        """Retire une valeur des listes, sans modifier les événements."""
+        self._verifier_origine(_requete)
+        _formulaire = await _requete.form()
+        _table, _valeur, _message = self._lire_demande_liste(
+            _formulaire, champ_valeur="ancienne"
+        )
+        if _message:
+            return self._rediriger_vers_listes(_message)
+        if not _valeur.strip():
+            return self._rediriger_vers_listes(
+                "La valeur à retirer ne peut pas être vide."
+            )
+        _base = self._ouvrir_base()
+        try:
+            _referentiels = ReferentielRepository(_base)
+            _utilisations = _referentiels.compter_utilisation(
+                _table, _valeur.strip()
+            )
+            _retire = _referentiels.retirer(_table, _valeur.strip())
+            _base.valider()
+        except Exception:
+            _base.annuler()
+            raise
+        finally:
+            _base.fermer()
+        if not _retire:
+            return self._rediriger_vers_listes(
+                f"« {_valeur.strip()} » n'est pas dans la liste {_table}."
+            )
+        _message = f"« {_valeur.strip()} » retiré de la liste {_table}."
+        if _utilisations:
+            _message += (
+                f" {_utilisations} événement(s) l'utilisent encore "
+                "et conservent cette valeur."
+            )
+        return self._rediriger_vers_listes(_message)
+
+    def _lire_demande_liste(
+        self, _formulaire, champ_valeur: str = "valeur"
+    ) -> tuple[str, str, str]:
+        """Lit la table et la valeur d'une demande de gestion de liste.
+
+        :returns: (table, valeur, message d'erreur éventuel). La table
+            doit être l'une des listes du formulaire ; sinon la demande
+            est refusée avec un message clair.
+        """
+        _table = str(_formulaire.get("table") or "")
+        if _table not in TABLES_FORMULAIRE:
+            return "", "", f"Liste inconnue : {_table or '(vide)'}."
+        return _table, str(_formulaire.get(champ_valeur) or ""), ""
+
+    def _rediriger_vers_listes(self, _message: str) -> RedirectResponse:
+        """Redirige vers la page des listes, avec un message affiché."""
+        return RedirectResponse(
+            f"/listes?message={quote(_message)}", status_code=303
+        )
+
+    # ------------------------------------------------------------------
     # Aides communes
     # ------------------------------------------------------------------
 
     def _contexte_page(self, _requete: Request) -> dict:
-        """Construit le contexte commun (référentiels, personnes, événements)."""
+        """Construit le contexte commun (référentiels, personnes, événements).
+
+        La liste des événements est filtrée puis triée selon les
+        paramètres d'URL (``filtre_*``, ``tri``, ``sens``), avec par
+        défaut la date d'interaction la plus récente en premier.
+        """
         _referentiels = ReferentielRepository(_base := self._ouvrir_base())
         try:
+            _tri, _sens, _filtres = self._lire_tri_filtres(_requete)
+            _evenements = SuiviRepository(_base).lister()
+            _evenements = self._filtrer_evenements(_evenements, _filtres)
+            _evenements = self._trier_evenements(_evenements, _tri, _sens)[:100]
             _contexte = {
                 "requete": _requete,
                 "referentiels": {
@@ -252,12 +457,108 @@ class ApplicationWeb:
                     for _table in TABLES_FORMULAIRE
                 },
                 "personnes": PersonneRepository(_base).lister(),
-                # Les événements les plus récents en premier, limités à 100.
-                "evenements": list(reversed(SuiviRepository(_base).lister()))[:100],
+                # Les événements filtrés, triés (date décroissante par
+                # défaut), limités aux 100 premiers.
+                "evenements": _evenements,
+                "tris": self._urls_tri(_requete, _filtres, _tri, _sens),
+                "tri_actif": _tri,
+                "sens_actif": _sens,
+                "filtres": _filtres,
             }
         finally:
             _base.fermer()
         return _contexte
+
+    def _lire_tri_filtres(self, _requete: Request) -> tuple[str, str, dict]:
+        """Lit le tri et les filtres demandés dans l'URL.
+
+        Sans paramètre, le tri par défaut s'applique : date de
+        l'interaction, de la plus récente à la plus ancienne. Une colonne
+        inconnue ou un sens inconnu est ignoré au profit de ce défaut.
+        """
+        _parametres = _requete.query_params
+        _tri = _parametres.get("tri", "")
+        if _tri not in COLONNES_TRI:
+            _tri = "date"
+        _sens = _parametres.get("sens", "")
+        if _tri == "date" and not _sens:
+            _sens = "desc"
+        elif _sens not in ("asc", "desc"):
+            _sens = "asc"
+        _filtres = {
+            _champ: _parametres.get(_champ, "").strip()
+            for _champ, _ in FILTRES_LISTE
+        }
+        return _tri, _sens, _filtres
+
+    def _filtrer_evenements(
+        self, _evenements: list, _filtres: dict
+    ) -> list:
+        """Ne garde que les événements qui remplissent tous les filtres.
+
+        La recherche est insensible à la casse et porte sur un extrait du
+        texte de la colonne.
+        """
+        _resultats = _evenements
+        for _parametre, _attribut in FILTRES_LISTE:
+            _recherche = _filtres.get(_parametre, "").lower()
+            if _recherche:
+                _resultats = [
+                    _evenement
+                    for _evenement in _resultats
+                    if _recherche in str(
+                        getattr(_evenement, _attribut) or ""
+                    ).lower()
+                ]
+        return _resultats
+
+    def _trier_evenements(
+        self, _evenements: list, _tri: str, _sens: str
+    ) -> list:
+        """Trie les événements selon une colonne et un sens.
+
+        Les événements sans valeur pour cette colonne restent en fin de
+        liste quel que soit le sens.
+        """
+        def _valeur(_evenement):
+            return getattr(_evenement, _tri) or ""
+
+        _remplis = [
+            _evenement
+            for _evenement in _evenements
+            if getattr(_evenement, _tri)
+        ]
+        _vides = [
+            _evenement
+            for _evenement in _evenements
+            if not getattr(_evenement, _tri)
+        ]
+        return sorted(_remplis, key=_valeur, reverse=_sens == "desc") + _vides
+
+    def _urls_tri(
+        self, _requete: Request, _filtres: dict, _tri: str, _sens: str
+    ) -> dict:
+        """Construit, pour chaque colonne, le lien de tri à afficher.
+
+        Cliquer sur la colonne déjà active inverse le sens ; les filtres
+        et la personne préremplie sont conservés dans le lien.
+        """
+        _parametres = {
+            _champ: _valeur
+            for _champ, _valeur in _requete.query_params.items()
+            if _champ.startswith("filtre_") or _champ == "personne"
+        }
+        _liens: dict[str, str] = {}
+        for _colonne in COLONNES_TRI:
+            _cible = dict(_parametres)
+            _cible["tri"] = _colonne
+            if _colonne == _tri:
+                # La colonne déjà active propose l'ordre inverse.
+                _cible["sens"] = "asc" if _sens == "desc" else "desc"
+            else:
+                _cible["sens"] = "asc"
+            _liens[_colonne] = "/?" + urlencode(_cible)
+        return _liens
 
     def _lire_formulaire(self, _formulaire) -> dict[str, str]:
         """Extrait les champs du formulaire (chaîne vide si absents)."""

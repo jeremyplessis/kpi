@@ -28,13 +28,19 @@
       background: var(--fond);
       line-height: 1.5;
     }
-    .conteneur { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+    .conteneur { max-width: 1240px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
     header.entete {
       display: flex; align-items: baseline; gap: .75rem;
-      padding: .25rem 0 1.25rem;
+      padding: .25rem 0 1.25rem; flex-wrap: wrap;
     }
     header.entete h1 { font-size: 1.35rem; margin: 0; letter-spacing: .01em; }
     header.entete .sous-titre { color: var(--encre-doux); font-size: .9rem; }
+    header.entete nav { margin-left: auto; }
+    header.entete nav a {
+      color: var(--accent); text-decoration: none; font-weight: 600;
+      margin-left: 1.25rem; font-size: .95rem;
+    }
+    header.entete nav a:hover { text-decoration: underline; }
     .carte {
       background: var(--carte);
       border: 1px solid var(--bord);
@@ -86,19 +92,74 @@
     button.primaire:hover { background: var(--accent-fonce); }
     a.discret { color: var(--encre-doux); font-size: .9rem; }
     h2.section { font-size: 1.05rem; margin: 0 0 .75rem; }
+    /* Saisie à gauche, liste des événements à droite. */
+    .disposition {
+      display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 9fr);
+      gap: 1.25rem; align-items: start;
+    }
+    /* min-width: 0 évite que le contenu d'une colonne (formulaire,
+       tableau) n'impose sa largeur minimale à toute la grille. */
+    .colonne-saisie, .colonne-liste { min-width: 0; }
+    .colonne-saisie > .carte, .colonne-liste > .carte { margin-bottom: 0; }
+    .visuellement-cache {
+      position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip: rect(0, 0, 0, 0); white-space: nowrap;
+    }
+    /* Barre de filtres au-dessus de la liste. */
+    .filtres {
+      display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+      margin-bottom: .9rem;
+    }
+    .filtres input { width: 8.5rem; padding: .35rem .55rem; font-size: .88rem; }
+    button.secondaire {
+      background: var(--carte); color: var(--accent);
+      border: 1px solid var(--accent); border-radius: 8px;
+      padding: .35rem .9rem; font: inherit; font-size: .88rem;
+      font-weight: 600; cursor: pointer;
+    }
+    button.secondaire:hover { background: var(--fond); }
+    th a.tri { color: inherit; text-decoration: none; }
+    th a.tri:hover { color: var(--accent); text-decoration: underline; }
+    .fleche { font-size: .7rem; }
+    td.actions-ligne a { margin-right: .6rem; }
+    .encre-doux { color: var(--encre-doux); }
+    .bloc-liste { margin-bottom: 1.75rem; }
+    .bloc-liste h3 { font-size: .95rem; margin: 0 0 .5rem; }
+    .en-ligne { display: inline-flex; gap: .4rem; align-items: center; }
+    .en-ligne input { width: 10rem; padding: .35rem .55rem; font-size: .88rem; }
+    .ajout-liste { margin-top: .75rem; }
+    button.discret-bouton {
+      background: none; color: var(--encre-doux);
+      border: 1px solid var(--bord); border-radius: 8px;
+      padding: .35rem .9rem; font: inherit; font-size: .88rem; cursor: pointer;
+    }
+    button.discret-bouton:hover { color: var(--erreur-texte); border-color: var(--erreur-bord); }
     .defilement { overflow-x: auto; }
     table {
-      border-collapse: collapse; width: 100%; min-width: 40rem; font-size: .9rem;
+      border-collapse: collapse; width: 100%; min-width: 28rem; font-size: .85rem;
     }
-    th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--bord); white-space: nowrap; }
-    th { color: var(--encre-doux); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; }
-    td.commentaire { white-space: normal; min-width: 12rem; max-width: 22rem; }
+    th, td {
+      text-align: left; padding: .35rem .45rem;
+      border-bottom: 1px solid var(--bord);
+    }
+    /* Le texte des cellules peut passer à la ligne pour que le tableau
+       tienne dans sa colonne ; les liens Modifier / Supprimer se
+       superposent naturellement. */
+    td.actions-ligne { white-space: normal; }
+    td.actions-ligne a { display: block; margin: .12rem 0; }
+    th { color: var(--encre-doux); font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
+    td.commentaire { white-space: normal; min-width: 4rem; max-width: 18rem; }
     td a { color: var(--accent); text-decoration: none; font-weight: 600; }
     td a:hover { text-decoration: underline; }
     .vide { color: var(--encre-doux); font-size: .9rem; }
+    @media (max-width: 1100px) {
+      .disposition { grid-template-columns: 1fr; }
+    }
     @media (max-width: 640px) {
       .conteneur { padding: 1rem .75rem 2rem; }
       .carte { padding: 1rem; }
+      header.entete nav { margin-left: 0; }
+      header.entete nav a { margin-left: 0; margin-right: 1.25rem; }
     }
   </style>
 </head>
@@ -107,6 +168,10 @@
     <header class="entete">
       <h1>Suivi d'activité</h1>
       <span class="sous-titre">saisie des contacts et prospects</span>
+      <nav>
+        <a href="/">Saisie</a>
+        <a href="/listes">Listes</a>
+      </nav>
     </header>
     {% block contenu %}{% endblock %}
   </div>

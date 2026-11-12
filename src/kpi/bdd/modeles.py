@@ -21,6 +21,18 @@ TABLES_REFERENTIELLES = (
 )
 
 
+#: Colonnes de ``suivi_activite`` qui référencent chaque référentiel
+#: (l'action et le canal sont utilisés à deux endroits du formulaire).
+COLONNES_UTILISATION = {
+    "canal": ("canal_id", "canal2_id"),
+    "provenance": ("provenance_id",),
+    "statut_contact": ("statut_contact_id",),
+    "prestation": ("prestation_id",),
+    "detail_prestation": ("detail_prestation_id",),
+    "action": ("action_public_id", "action_photographe_id"),
+}
+
+
 class ReferentielRepository:
     """Accès en lecture et écriture aux tables de référence.
 
@@ -75,12 +87,79 @@ class ReferentielRepository:
     def ajouter(self, _table: str, _valeur: str) -> bool:
         """Ajoute une valeur à un référentiel.
 
-        :returns: True si la valeur a été créée, False si elle existait déjà.
+        Une valeur qui avait été retirée est remise dans la liste : le
+        ré-ajout la réactive plutôt que de créer un doublon.
+
+        :returns: True si la valeur est désormais dans la liste, False si
+            elle y était déjà.
         """
-        if self.identifier(_table, _valeur) is not None:
-            return False
+        _id = self.identifier(_table, _valeur)
+        if _id is not None:
+            # Réactive uniquement si la valeur avait été retirée : si elle
+            # est déjà dans la liste, il n'y a rien à faire.
+            _curseur = self._base.connexion.execute(
+                f"UPDATE {_table} SET actif = 1 WHERE id = ? AND actif = 0",  # noqa: S608 - table listée blanche
+                (_id,),
+            )
+            return bool(_curseur.rowcount)
         self.obtenir_ou_creer(_table, _valeur)
         return True
+
+    def renommer(self, _table: str, _ancienne: str, _nouvelle: str) -> bool:
+        """Renomme une valeur du référentiel.
+
+        Les événements existants affichent automatiquement le nouveau nom
+        (ils référencent la valeur par son identifiant, inchangé).
+
+        :returns: True si le renommage a eu lieu, False si l'ancienne
+            valeur est introuvable ou si le nouveau nom est déjà pris.
+        """
+        if _table not in TABLES_REFERENTIELLES:
+            raise ValueError(f"Table de référence inconnue : {_table}")
+        if self.identifier(_table, _nouvelle) is not None:
+            return False
+        _curseur = self._base.connexion.execute(
+            f"UPDATE {_table} SET nom = ? WHERE nom = ?",  # noqa: S608 - table listée blanche
+            (_nouvelle, _ancienne),
+        )
+        return bool(_curseur.rowcount)
+
+    def retirer(self, _table: str, _valeur: str) -> bool:
+        """Retire une valeur des listes (sans toucher aux événements).
+
+        La valeur est désactivée plutôt que détruite : les événements qui
+        l'utilisent continuent de l'afficher, et le ré-ajout du même nom
+        la réactive.
+
+        :returns: True si la valeur a été retirée, False si introuvable.
+        """
+        if _table not in TABLES_REFERENTIELLES:
+            raise ValueError(f"Table de référence inconnue : {_table}")
+        _curseur = self._base.connexion.execute(
+            f"UPDATE {_table} SET actif = 0 WHERE nom = ? AND actif = 1",  # noqa: S608 - table listée blanche
+            (_valeur,),
+        )
+        return bool(_curseur.rowcount)
+
+    def compter_utilisation(self, _table: str, _valeur: str) -> int:
+        """Compte les événements qui utilisent cette valeur de référence.
+
+        Sert à prévenir l'utilisatrice au moment de retirer une valeur :
+        les événements concernés conservent leur contenu.
+        """
+        if _table not in TABLES_REFERENTIELLES:
+            raise ValueError(f"Table de référence inconnue : {_table}")
+        _id = self.identifier(_table, _valeur)
+        if _id is None:
+            return 0
+        _total = 0
+        for _colonne in COLONNES_UTILISATION[_table]:
+            _curseur = self._base.connexion.execute(
+                f"SELECT COUNT(*) AS total FROM suivi_activite WHERE {_colonne} = ?",  # noqa: S608 - colonne listée blanche
+                (_id,),
+            )
+            _total += int(_curseur.fetchone()["total"])
+        return _total
 
 
 class PersonneRepository:
