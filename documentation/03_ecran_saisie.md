@@ -4,7 +4,18 @@ Ce document décrit l'écran web local qui remplace la saisie manuelle de
 l'onglet `Suivi` du classeur d'origine. Il s'adresse à l'utilisatrice
 quotidienne (Cécile) et ne suppose aucune connaissance technique.
 
+## Installer l'application [TODO]
+
+Automatiser les étapes suivantes
+
+[TODO] création de l'environnement virtuel
+
+[TODO] installation dans l'environnement virtuel
+
 ## Démarrer l'application
+
+[TODO] créer un script de lancement pour macos permettant de lancer l'interface
+web depuis le finder sans avoir à passer par un terminal
 
 Après avoir préparé l'environnement (voir le `README.md` : création d'un
 environnement virtuel puis `pip install -e .`), depuis la racine du
