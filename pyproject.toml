@@ -7,7 +7,7 @@ name = "kpi"
 version = "0.1.0"
 description = "Outil de saisie d'activité et de restitution des KPI"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "openpyxl>=3.1",
     "fastapi>=0.115",
