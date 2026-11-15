@@ -135,6 +135,26 @@ Les changements doivent être **groupés par type** dans chaque version :
 
 **Ordre recommandé** : Nouveautés → Améliorations → Corrections → Documentation
 
+### 5. Positionnement de la section "À venir"
+
+**Règle impérative** : La section **"À venir"** doit **TOUJOURS** être **en tête du fichier**, juste après l'en-tête et avant toutes les versions taggées.
+
+```markdown
+# 📜 CHANGELOG - KPI
+... (en-tête)
+---
+## 🔜 **À venir** *(Next Release)*  ← TOUJOURS ICI
+... (contenu)
+---
+## 🎉 **0.0.2** *(date)*
+...
+## 🎉 **0.0.1** *(date)*
+...
+```
+
+**Si la section "À venir" est vide** : Supprimez-la complètement du fichier.
+**Ne jamais** la placer entre deux versions taggées.
+
 ### 5. Sections spéciales
 
 #### Section "À venir" (Next Release)

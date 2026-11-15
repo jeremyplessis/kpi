@@ -7,7 +7,7 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
-## 🔜 **À venir** *(Next Release)*
+## 🎉 **0.0.2** *(15 novembre 2026)*
 
 ### ✨ Nouveautés
 
@@ -15,7 +15,7 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
   *Double-cliquez, l'environnement virtuel est créé automatiquement si nécessaire, et l'application démarre dans Terminal*
 
 - **Affichage de la version** : Ajout de l'option `-v` / `--version` pour connaître la version exacte de l'application en cours d'exécution 📋
-  *Exemple : `kpi version 0.0.1.post7+dirty` indique que vous êtes 7 commits après la version 0.0.1 avec des modifications non commitées*
+  *Exemple : `kpi version 0.0.2` ou `kpi version 0.0.2.post1+dirty` selon votre position dans le dépôt*
 
 - **Gestion automatique des versions** : La version est désormais déterminée automatiquement depuis les tags Git 🏷️
   *Plus besoin de mettre à jour manuellement le numéro de version !*
@@ -100,9 +100,10 @@ En mode développement, vous verrez des versions comme :
 | 1 | Base SQLite + Import | ✅ Terminé | 0.0.1 |
 | 2 | Moteur de calcul KPI | ✅ Terminé | 0.0.1 |
 | 3 | Écran de saisie | ✅ Terminé | 0.0.1 |
-| 4 | Écrans de consultation + Export PDF | ⏳ En cours | 0.0.2 |
-| 5 | Connecteur Google Analytics 4 | ⏳ À venir | 0.1.0 |
-| 6 | Indicateurs reportés (visiteurs GA, conversions) | ⏳ À venir | 0.1.0 |
+| 4 | Lanceur macOS + gestion des versions | ✅ Terminé | 0.0.2 |
+| 5 | Écrans de consultation + Export PDF | ⏳ En cours | 0.0.3 |
+| 6 | Connecteur Google Analytics 4 | ⏳ À venir | 0.1.0 |
+| 7 | Indicateurs reportés (visiteurs GA, conversions) | ⏳ À venir | 0.1.0 |
 
 ---
 
