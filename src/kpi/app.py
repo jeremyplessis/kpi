@@ -9,16 +9,20 @@ Lancement usuel (depuis la racine du projet, où se trouve la base) :
     kpi                     # ouvre le navigateur sur l'écran de saisie
     kpi --sans-navigateur   # n'ouvre pas le navigateur
     kpi --base autre.sqlite3 --port 9000
+    kpi -v                  # affiche la version et quitte
+    kpi --version           # affiche la version et quitte
 """
 
 import argparse
 import socket
+import sys
 import threading
 import time
 import webbrowser
 
 import uvicorn
 
+from kpi import __version__
 from kpi.web.routes import ApplicationWeb
 
 #: Adresse d'écoute : boucle locale uniquement, l'application reste privée.
@@ -53,7 +57,18 @@ def main() -> int:
         action="store_true",
         help="ne pas ouvrir le navigateur au démarrage",
     )
+    _analyseur.add_argument(
+        "-v",
+        "--version",
+        action="store_true",
+        help="affiche la version de l'application et quitte",
+    )
     _arguments = _analyseur.parse_args()
+
+    # Afficher la version et quitter si demandé
+    if _arguments.version:
+        print(f"kpi version {__version__}")
+        return 0
 
     if not _port_est_libre(HOTE_LOCAL, _arguments.port):
         print(

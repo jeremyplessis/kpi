@@ -16,7 +16,7 @@ entrepreneurs individuels (en cours de développement : voir
 
 ## Mise en route
 
-Python 3.14 ou plus récent est requis.
+Python 3.13 ou plus récent est requis.
 
 ```bash
 # 1. préparer l'environnement (une seule fois)
@@ -51,7 +51,7 @@ dossier `documentation/` :
 
 ## Conventions de code
 
-- Python 3.14, programmation orientée objet, PEP 8 ;
+- Python 3.13, programmation orientée objet, PEP 8 ;
 - les variables locales sont préfixées par `_` ;
 - chaque classe et méthode est documentée (docstrings) ;
 - tests automatisés (unittest) ajoutés au fil du développement.
