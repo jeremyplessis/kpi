@@ -18,7 +18,7 @@ Cécile Plessis Photographe.
 
 | Composant | Choix proposé | Pourquoi |
 |---|---|---|
-| Langage | Python 3.14 | Conforme au projet |
+| Langage | Python 3.13 | Conforme au projet |
 | Base de données | SQLite (fichier unique `kpi.sqlite3`) | Aucun serveur, sauvegarde = copie de fichier, embarquée dans Python |
 | Interface | Application web locale (FastAPI + Jinja2 + HTMX) | Interface conviviale et moderne, aucune installation côté utilisatrice, PDF et graphiques faciles |
 | PDF | WeasyPrint (rendu HTML vers PDF) | Les écrans et les PDF partagent les mêmes gabarits ; mise en page riche |
