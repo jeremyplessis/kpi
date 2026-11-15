@@ -24,6 +24,11 @@ from kpi.bdd.modeles import (
     ReferentielRepository,
     SuiviRepository,
 )
+from kpi.kpi.indicateurs import (
+    LigneGhosting,
+    REGISTRE_INDICATEURS,
+    TauxGhosting,
+)
 from kpi.suivi import EvenementSuivi
 
 #: Tables de référence proposées dans les listes déroulantes du formulaire.
@@ -123,6 +128,9 @@ class ApplicationWeb:
         _app.post("/listes/ajouter")(self.ajouter_valeur_liste)
         _app.post("/listes/renommer")(self.renommer_valeur_liste)
         _app.post("/listes/retirer")(self.retirer_valeur_liste)
+        # Routes pour la consultation des KPI
+        _app.get("/kpi")(self.page_kpi)
+        _app.get("/kpi/{_indicateur}")(self.page_kpi_indicateur)
 
     def _ouvrir_base(self) -> BaseDonnees:
         """Ouvre une connexion vers la base (le schéma est créé au besoin)."""
@@ -412,6 +420,182 @@ class ApplicationWeb:
                 "et conservent cette valeur."
             )
         return self._rediriger_vers_listes(_message)
+
+    # ------------------------------------------------------------------
+    # Pages KPI
+    # ------------------------------------------------------------------
+
+    def page_kpi(self, _requete: Request):
+        """Affiche la page de consultation des KPI avec filtres."""
+        _base = self._ouvrir_base()
+        try:
+            _evenements = SuiviRepository(_base).lister()
+            _annees = self._obtenir_annees(_evenements)
+            
+            # Lire les paramètres de filtrage
+            _indicateur_nom = _requete.query_params.get("indicateur", "")
+            _annee_debut = _requete.query_params.get("annee_debut", "")
+            _mois_debut = _requete.query_params.get("mois_debut", "")
+            _annee_fin = _requete.query_params.get("annee_fin", "")
+            _mois_fin = _requete.query_params.get("mois_fin", "")
+            
+            # Filtrer les événements selon la période
+            _evenements_filtres = self._filtrer_par_periode(
+                _evenements, _annee_debut, _mois_debut, _annee_fin, _mois_fin
+            )
+            
+            # Trouver l'indicateur sélectionné
+            _indicateur_classe = None
+            _lignes_indicateur = []
+            _indicateur_libelle = ""
+            _indicateur_description = ""
+            _indicateur_dimensions = []
+            
+            if _indicateur_nom:
+                for _indic_classe in REGISTRE_INDICATEURS:
+                    if _indic_classe.__name__ == _indicateur_nom:
+                        _indicateur_classe = _indic_classe
+                        _indicateur = _indic_classe()
+                        _lignes_indicateur = _indicateur.calculer(_evenements_filtres)
+                        _indicateur_libelle = _indic_classe.libelle
+                        _indicateur_description = _indic_classe.description
+                        _indicateur_dimensions = list(_indic_classe.dimensions)
+                        break
+            
+            _contexte = {
+                "requete": _requete,
+                "indicateurs_disponibles": [
+                    {"nom": _indic.__name__, "libelle": _indic.libelle}
+                    for _indic in REGISTRE_INDICATEURS
+                ],
+                "annees_disponibles": sorted(_annees),
+                "indicateur_selectionne": _indicateur_nom,
+                "annee_debut": _annee_debut,
+                "mois_debut": _mois_debut,
+                "annee_fin": _annee_fin,
+                "mois_fin": _mois_fin,
+                "lignes_indicateur": _lignes_indicateur,
+                "indicateur_libelle": _indicateur_libelle,
+                "indicateur_description": _indicateur_description,
+                "indicateur_dimensions": _indicateur_dimensions,
+            }
+        finally:
+            _base.fermer()
+        
+        return self.modeles.TemplateResponse(_requete, "kpi.html", _contexte)
+
+    def page_kpi_indicateur(self, _requete: Request, _indicateur: str):
+        """Affiche une page dédiée pour un indicateur spécifique.
+        
+        Actuellement, seul le TauxGhosting a une page dédiée avec détail.
+        """
+        if _indicateur == "TauxGhosting":
+            return self._page_ghosting_detail(_requete)
+        
+        # Pour les autres indicateurs, rediriger vers la page principale
+        # avec l'indicateur présélectionné
+        _params = dict(_requete.query_params)
+        _params["indicateur"] = _indicateur
+        return RedirectResponse(
+            "/kpi?" + urlencode(_params), status_code=303
+        )
+
+    def _page_ghosting_detail(self, _requete: Request):
+        """Affiche le détail du taux de ghosting avec demandes/réponses."""
+        _base = self._ouvrir_base()
+        try:
+            _evenements = SuiviRepository(_base).lister()
+            _annees = self._obtenir_annees(_evenements)
+            
+            # Lire les paramètres de filtrage
+            _annee_debut = _requete.query_params.get("annee_debut", "")
+            _mois_debut = _requete.query_params.get("mois_debut", "")
+            _annee_fin = _requete.query_params.get("annee_fin", "")
+            _mois_fin = _requete.query_params.get("mois_fin", "")
+            
+            # Filtrer les événements selon la période
+            _evenements_filtres = self._filtrer_par_periode(
+                _evenements, _annee_debut, _mois_debut, _annee_fin, _mois_fin
+            )
+            
+            # Calculer le détail du ghosting
+            _indicateur = TauxGhosting()
+            _detail_ghosting = _indicateur.calculer_detail(_evenements_filtres)
+            
+            _contexte = {
+                "requete": _requete,
+                "annees_disponibles": sorted(_annees),
+                "annee_debut": _annee_debut,
+                "mois_debut": _mois_debut,
+                "annee_fin": _annee_fin,
+                "mois_fin": _mois_fin,
+                "detail_ghosting": _detail_ghosting,
+            }
+        finally:
+            _base.fermer()
+        
+        return self.modeles.TemplateResponse(
+            _requete, "kpi_ghosting.html", _contexte
+        )
+
+    def _obtenir_annees(self, _evenements: list[EvenementSuivi]) -> set[int]:
+        """Retourne l'ensemble des années présentes dans les événements."""
+        return {_ev.annee for _ev in _evenements}
+
+    def _filtrer_par_periode(
+        self,
+        _evenements: list[EvenementSuivi],
+        _annee_debut: str,
+        _mois_debut: str,
+        _annee_fin: str,
+        _mois_fin: str,
+    ) -> list[EvenementSuivi]:
+        """Filtre les événements selon une période.
+        
+        :param _annee_debut: Année de début (vide = pas de filtre)
+        :param _mois_debut: Mois de début (vide = pas de filtre)
+        :param _annee_fin: Année de fin (vide = pas de filtre)
+        :param _mois_fin: Mois de fin (vide = pas de filtre)
+        :returns: Liste filtrée des événements
+        """
+        _resultat = _evenements
+        
+        # Convertir les paramètres en entiers
+        _a_debut = int(_annee_debut) if _annee_debut else None
+        _m_debut = int(_mois_debut) if _mois_debut else None
+        _a_fin = int(_annee_fin) if _annee_fin else None
+        _m_fin = int(_mois_fin) if _mois_fin else None
+        
+        # Si aucune date de début n'est spécifiée, on prend la plus ancienne
+        if _a_debut is None and _m_debut is None:
+            _a_debut = min((_ev.annee for _ev in _resultat), default=None)
+            if _a_debut is not None:
+                _m_debut = 1
+        
+        # Si aucune date de fin n'est spécifiée, on prend la plus récente
+        if _a_fin is None and _m_fin is None:
+            _a_fin = max((_ev.annee for _ev in _resultat), default=None)
+            if _a_fin is not None:
+                _m_fin = 12
+        
+        # Filtrer
+        if _a_debut is not None:
+            _resultat = [
+                _ev for _ev in _resultat
+                if (_ev.annee > _a_debut) or (
+                    _ev.annee == _a_debut and _ev.mois >= (_m_debut or 1)
+                )
+            ]
+        
+        if _a_fin is not None:
+            _resultat = [
+                _ev for _ev in _resultat
+                if (_ev.annee < _a_fin) or (
+                    _ev.annee == _a_fin and _ev.mois <= (_m_fin or 12)
+                )
+            ]
+        
+        return _resultat
 
     def _lire_demande_liste(
         self, _formulaire, champ_valeur: str = "valeur"

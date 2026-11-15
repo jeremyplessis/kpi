@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+{% block titre %}Suivi d'activité — consultation des KPI{% endblock %}
+
+{% block contenu %}
+
+<div class="carte">
+  <h2 class="section">Consultation des indicateurs clés (KPI)</h2>
+  
+  <p>Sélectionnez un indicateur et une période pour visualiser les données et les graphiques.</p>
+  
+  <form method="get" action="/kpi" class="filtres">
+    <div class="en-ligne">
+      <label for="indicateur" class="visuellement-cache">Indicateur</label>
+      <select id="indicateur" name="indicateur" required>
+        <option value="">— Choisir un indicateur —</option>
+        {% for _indic in indicateurs_disponibles %}
+        <option value="{{ _indic.nom }}" {% if indicateur_selectionne == _indic.nom %}selected{% endif %}>
+          {{ _indic.libelle }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    
+    <div class="en-ligne">
+      <label for="annee_debut" class="visuellement-cache">Année début</label>
+      <select id="annee_debut" name="annee_debut">
+        <option value="">Toutes les années</option>
+        {% for _annee in annees_disponibles %}
+        <option value="{{ _annee }}" {% if annee_debut == _annee|string %}selected{% endif %}>{{ _annee }}</option>
+        {% endfor %}
+      </select>
+      
+      <label for="mois_debut" class="visuellement-cache">Mois début</label>
+      <select id="mois_debut" name="mois_debut">
+        <option value="">Tous les mois</option>
+        {% for _mois in range(1, 13) %}
+        <option value="{{ _mois }}" {% if mois_debut == _mois|string %}selected{% endif %}>{{ _mois }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    
+    <div class="en-ligne">
+      <label for="annee_fin" class="visuellement-cache">Année fin</label>
+      <select id="annee_fin" name="annee_fin">
+        <option value="">Toutes les années</option>
+        {% for _annee in annees_disponibles %}
+        <option value="{{ _annee }}" {% if annee_fin == _annee|string %}selected{% endif %}>{{ _annee }}</option>
+        {% endfor %}
+      </select>
+      
+      <label for="mois_fin" class="visuellement-cache">Mois fin</label>
+      <select id="mois_fin" name="mois_fin">
+        <option value="">Tous les mois</option>
+        {% for _mois in range(1, 13) %}
+        <option value="{{ _mois }}" {% if mois_fin == _mois|string %}selected{% endif %}>{{ _mois }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    
+    <button type="submit" class="secondaire">Appliquer les filtres</button>
+    <a class="discret" href="/kpi">Effacer les filtres</a>
+  </form>
+</div>
+
+{% if indicateur_selectionne %}
+
+<div class="carte">
+  <h2 class="section">
+    {{ indicateur_libelle }}
+    {% if annee_debut or mois_debut or annee_fin or mois_fin %}
+    <span style="color: var(--encre-doux); font-size: 0.9em; font-weight: normal;">
+      — Période filtrée
+    </span>
+    {% endif %}
+  </h2>
+  
+  {% if indicateur_description %}
+  <p class="aide">{{ indicateur_description }}</p>
+  {% endif %}
+
+  <!-- Tableau des données -->
+  <div class="defilement">
+    <table>
+      <thead>
+        <tr>
+          {% for _dim in indicateur_dimensions %}
+          <th scope="col">{{ _dim }}</th>
+          {% endfor %}
+          <th scope="col">Valeur</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for _ligne in lignes_indicateur %}
+        <tr>
+          {% for _val in _ligne.dimensions %}
+          <td>{{ _val }}</td>
+          {% endfor %}
+          {% if _ligne.valeur == _ligne.valeur|int %}
+          <td style="text-align: right;">{{ _ligne.valeur|int }}</td>
+          {% else %}
+          <td style="text-align: right;">{{ "%.2f"|format(_ligne.valeur) }} %</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if lignes_indicateur|length == 0 %}
+      <tbody>
+        <tr>
+          <td colspan="{{ indicateur_dimensions|length + 1 }}" style="text-align: center; color: var(--encre-doux);">
+            Aucune donnée disponible pour cette période.
+          </td>
+        </tr>
+      </tbody>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+<!-- Graphique -->
+{% if lignes_indicateur|length > 0 %}
+<div class="carte">
+  <h2 class="section">Visualisation graphique</h2>
+  
+  {% if indicateur_selectionne == "TauxGhosting" %}
+  <!-- Graphique spécifique pour le taux de ghosting (avec demandes/réponses) -->
+  <canvas id="chartGhosting" style="max-height: 400px;"></canvas>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const ctx = document.getElementById('chartGhosting');
+      if (!ctx) return;
+      
+      const data = {
+        labels: [
+          {% for _ligne in lignes_indicateur %}
+          "{{ _ligne.dimensions[0] }}/{{ _ligne.dimensions[1]|string|replace("1", "01")|replace("2", "02")|replace("3", "03")|replace("4", "04")|replace("5", "05")|replace("6", "06")|replace("7", "07")|replace("8", "08")|replace("9", "09") }}"
+          {% if not loop.last %}, {% endif %}
+          {% endfor %}
+        ],
+        datasets: [
+          {
+            label: 'Taux de ghosting (%)',
+            data: [
+              {% for _ligne in lignes_indicateur %}
+              {{ _ligne.valeur * 100 }}
+              {% if not loop.last %}, {% endif %}
+              {% endfor %}
+            ],
+            backgroundColor: 'rgba(180, 89, 59, 0.2)',
+            borderColor: 'rgba(180, 89, 59, 1)',
+            borderWidth: 2,
+            yAxisID: 'y'
+          }
+        ]
+      };
+      
+      new Chart(ctx, {
+        type: 'line',
+        data: data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.label + ': ' + context.parsed.y.toFixed(1) + '%';
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              position: 'left',
+              title: { display: true, text: 'Taux (%)' }
+            }
+          }
+        }
+      });
+    });
+  </script>
+  
+  {% elif indicateur_dimensions|length == 1 %}
+  <!-- Graphique pour indicateurs à 1 dimension (ex: par mois) -->
+  <canvas id="chartSimple" style="max-height: 400px;"></canvas>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const ctx = document.getElementById('chartSimple');
+      if (!ctx) return;
+      
+      const isPercentage = {{ 1 if indicateur_selectionne == "TauxGhosting" else 0 }};
+      
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: [
+            {% for _ligne in lignes_indicateur %}
+            "{{ _ligne.dimensions[0] }}"
+            {% if not loop.last %}, {% endif %}
+            {% endfor %}
+          ],
+          datasets: [{
+            label: '{{ indicateur_libelle }}',
+            data: [
+              {% for _ligne in lignes_indicateur %}
+              {{ _ligne.valeur }}
+              {% if not loop.last %}, {% endif %}
+              {% endfor %}
+            ],
+            backgroundColor: 'rgba(180, 89, 59, 0.7)',
+            borderColor: 'rgba(180, 89, 59, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const value = isPercentage ? (context.parsed.y * 100).toFixed(1) + '%' : context.parsed.y;
+                  return context.dataset.label + ': ' + value;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: isPercentage ? 'Valeur (%)' : 'Nombre' }
+            }
+          }
+        }
+      });
+    });
+  </script>
+  
+  {% elif indicateur_dimensions|length == 2 %}
+  <!-- Graphique pour indicateurs à 2 dimensions -->
+  <canvas id="chartGrouped" style="max-height: 400px;"></canvas>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const ctx = document.getElementById('chartGrouped');
+      if (!ctx) return;
+      
+      // Regrouper les données par première dimension
+      const groups = {};
+      {% for _ligne in lignes_indicateur %}
+      const key = "{{ _ligne.dimensions[0] }}";
+      const subKey = "{{ _ligne.dimensions[1] }}";
+      const value = {{ _ligne.valeur }};
+      
+      if (!groups[key]) {
+        groups[key] = {};
+      }
+      groups[key][subKey] = value;
+      {% endfor %}
+      
+      // Extraire les labels et datasets
+      const labels = Object.keys(groups);
+      const subLabels = new Set();
+      Object.values(groups).forEach(g => Object.keys(g).forEach(k => subLabels.add(k)));
+      const subLabelsArray = Array.from(subLabels).sort();
+      
+      const datasets = subLabelsArray.map(subLabel => ({
+        label: subLabel,
+        data: labels.map(label => groups[label][subLabel] || 0),
+        backgroundColor: getRandomColor(subLabel)
+      }));
+      
+      function getRandomColor(seed) {
+        const colors = [
+          'rgba(180, 89, 59, 0.7)', 'rgba(147, 69, 44, 0.7)', 'rgba(113, 89, 193, 0.7)',
+          'rgba(79, 172, 254, 0.7)', 'rgba(52, 152, 219, 0.7)', 'rgba(155, 89, 182, 0.7)',
+          'rgba(241, 196, 15, 0.7)', 'rgba(230, 126, 34, 0.7)', 'rgba(231, 76, 60, 0.7)',
+          'rgba(26, 188, 156, 0.7)', 'rgba(46, 204, 113, 0.7)', 'rgba(52, 73, 94, 0.7)'
+        ];
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return colors[Math.abs(hash) % colors.length];
+      }
+      
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top' }
+          },
+          scales: {
+            x: { stacked: false },
+            y: { beginAtZero: true, stacked: false }
+          }
+        }
+      });
+    });
+  </script>
+  
+  {% elif indicateur_dimensions|length >= 3 %}
+  <!-- Graphique pour indicateurs à 3 dimensions ou plus -->
+  <canvas id="chartStacked" style="max-height: 500px;"></canvas>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const ctx = document.getElementById('chartStacked');
+      if (!ctx) return;
+      
+      // Regrouper par les 2 premières dimensions, sommer la troisième
+      const groups = {};
+      {% for _ligne in lignes_indicateur %}
+      const key1 = "{{ _ligne.dimensions[0] }}";
+      const key2 = "{{ _ligne.dimensions[1] }}";
+      const key3 = "{{ _ligne.dimensions[2] }}";
+      const value = {{ _ligne.valeur }};
+      
+      if (!groups[key1]) {
+        groups[key1] = {};
+      }
+      if (!groups[key1][key2]) {
+        groups[key1][key2] = 0;
+      }
+      groups[key1][key2] += value;
+      {% endfor %}
+      
+      // Créer datasets pour chaque valeur de la 3ème dimension
+      const allKeys2 = new Set();
+      Object.values(groups).forEach(g => Object.keys(g).forEach(k => allKeys2.add(k)));
+      const allKeys2Array = Array.from(allKeys2).sort();
+      
+      const labels = Object.keys(groups).sort();
+      const datasets = allKeys2Array.map(key2 => ({
+        label: key2,
+        data: labels.map(label => groups[label][key2] || 0),
+        backgroundColor: getRandomColor(key2)
+      }));
+      
+      function getRandomColor(seed) {
+        const colors = [
+          'rgba(180, 89, 59, 0.7)', 'rgba(147, 69, 44, 0.7)', 'rgba(113, 89, 193, 0.7)',
+          'rgba(79, 172, 254, 0.7)', 'rgba(52, 152, 219, 0.7)', 'rgba(155, 89, 182, 0.7)',
+          'rgba(241, 196, 15, 0.7)', 'rgba(230, 126, 34, 0.7)', 'rgba(231, 76, 60, 0.7)',
+          'rgba(26, 188, 156, 0.7)', 'rgba(46, 204, 113, 0.7)', 'rgba(52, 73, 94, 0.7)'
+        ];
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return colors[Math.abs(hash) % colors.length];
+      }
+      
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+              mode: 'index',
+              intersect: false
+            }
+          },
+          scales: {
+            x: { stacked: true },
+            y: { beginAtZero: true, stacked: true }
+          }
+        }
+      });
+    });
+  </script>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="carte">
+  <p style="text-align: center; color: var(--encre-doux);">
+    Sélectionnez un indicateur et une période pour afficher les données et les graphiques.
+  </p>
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}
