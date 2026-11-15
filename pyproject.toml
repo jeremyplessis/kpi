@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=75"]
+requires = ["setuptools>=75", "setuptools-scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "kpi"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Outil de saisie d'activité et de restitution des KPI"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -27,3 +27,9 @@ kpi = "kpi.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools-scm]
+# Utiliser les tags git pour la version (format : v1.2.3 ou 1.2.3)
+# Si aucun tag, utilise la distance depuis le dernier tag + hash
+version_scheme = "post-release"
+local_scheme = "dirty-tag"
