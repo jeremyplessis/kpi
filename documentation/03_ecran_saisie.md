@@ -4,18 +4,113 @@ Ce document décrit l'écran web local qui remplace la saisie manuelle de
 l'onglet `Suivi` du classeur d'origine. Il s'adresse à l'utilisatrice
 quotidienne (Cécile) et ne suppose aucune connaissance technique.
 
-## Installer l'application [TODO]
+## Installer l'application
 
-Automatiser les étapes suivantes
+### Création de l'environnement virtuel
 
-[TODO] création de l'environnement virtuel
+Depuis le dossier du projet, exécutez les commandes suivantes dans un terminal :
 
-[TODO] installation dans l'environnement virtuel
+```bash
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -e .
+```
+
+L'environnement virtuel `.venv` est créé localement dans le projet. Le flag `-e .` installe le package en mode éditable, permettant de modifier le code source sans réinstaller.
+
+### Installation dans l'environnement virtuel
+
+Les dépendances suivantes sont automatiquement installées :
+- `openpyxl` pour la lecture des fichiers Excel (import initial)
+- `fastapi` et `uvicorn` pour le serveur web
+- `jinja2` pour les templates
+- `python-multipart` pour la gestion des formulaires
+
+Pour installer les dépendances de développement (nécessaires aux tests) :
+
+```bash
+.venv/bin/pip install -e ".[dev]"
+```
 
 ## Démarrer l'application
 
-[TODO] créer un script de lancement pour macos permettant de lancer l'interface
-web depuis le finder sans avoir à passer par un terminal
+### Créer un script de lancement pour macOS
+
+Pour lancer l'application directement depuis le Finder sans passer par un terminal manuellement, créez un fichier AppleScript :
+
+1. Ouvrez **Script Editor** (dans `/Applications/Utilitaires/`)
+2. Copiez-collez le code suivant :
+
+```applescript
+on run
+    -- Obtenir le chemin du script AppleScript
+    set scriptPath to POSIX path of (path to me)
+    
+    -- Obtenir le dossier parent (le projet KPI)
+    set projectDir to do shell script "dirname " & quoted form of scriptPath
+    
+    -- Construire la commande shell à exécuter
+    set shellScript to "
+cd " & quoted form of projectDir & "
+if [ ! -d .venv ]; then
+    echo \"Création de l'environnement virtuel...\"
+    python3 -m venv .venv
+    .venv/bin/pip install --upgrade pip
+    .venv/bin/pip install -e .
+fi
+.venv/bin/kpi
+"
+    
+    -- Ouvrir Terminal et exécuter le script
+    tell application "Terminal"
+        activate
+        do script shellScript
+    end tell
+end run
+```
+
+3. Sauvegardez le fichier comme **`KPI.scpt`** dans le dossier du projet
+4. **Pour l'exécuter depuis le Finder** :
+   - Faites un clic droit sur `KPI.scpt`
+   - Sélectionnez **Ouvrir avec** → **Terminal**
+   - Ou compilez-le en application via **Fichier** → **Exporter** → Format **Application**
+
+**Alternative recommandée (plus simple)** : Créez un fichier `KPI.command` directement dans le dossier du projet :
+
+1. Ouvrez **TextEdit** (ou un éditeur de texte)
+2. Copiez-collez le code suivant :
+
+```bash
+#!/bin/bash
+
+# Obtenir le dossier où se trouve ce script
+cd "$(dirname "$0")"
+
+# Créer l'environnement virtuel s'il n'existe pas
+if [ ! -d .venv ]; then
+    echo "Création de l'environnement virtuel..."
+    python3 -m venv .venv
+    .venv/bin/pip install --upgrade pip
+    .venv/bin/pip install -e .
+fi
+
+# Lancer l'application KPI
+.venv/bin/kpi
+
+# Garder le terminal ouvert après la fermeture de l'application
+echo ""
+echo "Appuyez sur Entrée pour fermer cette fenêtre..."
+read
+```
+
+3. Sauvegardez le fichier comme **`KPI.command`** dans le dossier du projet
+4. Rendez-le exécutable via le terminal :
+
+```bash
+chmod +x KPI.command
+```
+
+5. Double-cliquez sur `KPI.command` depuis le Finder : il s'ouvre dans Terminal et lance l'application
 
 Après avoir préparé l'environnement (voir le `README.md` : création d'un
 environnement virtuel puis `pip install -e .`), depuis la racine du
