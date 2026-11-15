@@ -28,7 +28,7 @@ Ce fichier décrit les conventions, l'architecture et les règles spécifiques �
 
 | Composant | Technologie | Rôle |
 |---|---|---|
-| Langage | Python 3.14+ | Langage principal |
+| Langage | Python 3.13+ | Langage principal |
 | Base de données | SQLite | Base de données embarquée, fichier unique |
 | Framework web | FastAPI | Serveur web local |
 | Templates | Jinja2 | Génération HTML |
@@ -97,7 +97,7 @@ kpi/
 
 ### Python
 
-- **Version** : Python 3.14 minimum (requis dans pyproject.toml)
+- **Version** : Python 3.13 minimum (requis dans pyproject.toml)
 - **Style** : PEP 8 strict
 - **Typage** : Type hints obligatoires
 - **Nommage** :
@@ -316,7 +316,7 @@ Même format que les commits : `<type>([scope]): <description>`
 
 1. **Données réelles** : Ne jamais commiter le fichier `KPI.xlsx` ou les bases SQLite contenant des données réelles
 2. **Sécurité** : Toujours vérifier l'origine des requêtes POST
-3. **Compatibilité** : Le projet cible Python 3.14+, ne pas utiliser de fonctionnalités de versions ultérieures
+3. **Compatibilité** : Le projet cible Python 3.13+, ne pas utiliser de fonctionnalités de versions ultérieures
 4. **Performances** : Les requêtes SQL doivent être optimisées (index, jointures)
 5. **Accessibilité** : Les templates HTML doivent être accessibles (balises sémantiques, labels)
 

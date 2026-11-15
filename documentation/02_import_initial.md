@@ -33,7 +33,7 @@ Points importants :
 
 Après avoir préparé l'environnement (voir le `README.md` : création d'un
 environnement virtuel puis `pip install -e .`), depuis la racine du
-projet, avec Python 3.14 ou plus récent :
+projet, avec Python 3.13 ou plus récent :
 
 ```bash
 python3 -m outils.import_initial chemin/vers/KPI.xlsx [chemin/base.sqlite3]
