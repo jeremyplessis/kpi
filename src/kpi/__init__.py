@@ -6,9 +6,12 @@ restitution sous forme d'écrans exportables en PDF.
 """
 
 try:
-    from importlib.metadata import version
-    __version__ = version("kpi")
-except (ImportError, ModuleNotFoundError):
-    # Fallback pour les environnements sans importlib.metadata (Python < 3.8)
-    # ou quand le package n'est pas installé
+    from setuptools_scm import get_version
+    __version__ = get_version(
+        root="../..", 
+        relative_to=__file__,
+        version_scheme="post-release",
+        local_scheme="dirty-tag"
+    )
+except Exception:
     __version__ = "0.0.0+dev"
