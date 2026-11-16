@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titre %}Suivi d'activité{% endblock %}</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --encre: #2a2520;
@@ -92,11 +93,18 @@
     button.primaire:hover { background: var(--accent-fonce); }
     a.discret { color: var(--encre-doux); font-size: .9rem; }
     h2.section { font-size: 1.05rem; margin: 0 0 .75rem; }
+    .entete-formulaire {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: .75rem;
+    }
+    .entete-formulaire h2.section { margin-bottom: 0; }
     /* Saisie à gauche, liste des événements à droite. */
     .disposition {
-      display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 9fr);
+      display: grid; grid-template-columns: minmax(300px, 4fr) minmax(0, 10fr);
       gap: 1.25rem; align-items: start;
     }
+    /* Sans formulaire affiché, la liste occupe toute la largeur. */
+    .disposition.sans-formulaire { grid-template-columns: 1fr; }
     /* min-width: 0 évite que le contenu d'une colonne (formulaire,
        tableau) n'impose sa largeur minimale à toute la grille. */
     .colonne-saisie, .colonne-liste { min-width: 0; }
@@ -136,11 +144,12 @@
     button.discret-bouton:hover { color: var(--erreur-texte); border-color: var(--erreur-bord); }
     .defilement { overflow-x: auto; }
     table {
-      border-collapse: collapse; width: 100%; min-width: 28rem; font-size: .85rem;
+      border-collapse: collapse; width: 100%; min-width: 42rem; font-size: .85rem;
     }
     th, td {
       text-align: left; padding: .35rem .45rem;
       border-bottom: 1px solid var(--bord);
+      white-space: nowrap;
     }
     /* Le texte des cellules peut passer à la ligne pour que le tableau
        tienne dans sa colonne ; les liens Modifier / Supprimer se
@@ -148,10 +157,28 @@
     td.actions-ligne { white-space: normal; }
     td.actions-ligne a { display: block; margin: .12rem 0; }
     th { color: var(--encre-doux); font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
-    td.commentaire { white-space: normal; min-width: 4rem; max-width: 18rem; }
+    /* La colonne commentaire est limitée par un div interne : en
+       table-layout auto, max-width sur la cellule elle-même est ignoré,
+       mais un bloc avec max-width contraint bien la largeur de colonne. */
+    td.commentaire { white-space: normal; }
+    td.commentaire > div {
+      max-width: 22rem; overflow-wrap: break-word;
+    }
     td a { color: var(--accent); text-decoration: none; font-weight: 600; }
     td a:hover { text-decoration: underline; }
     .vide { color: var(--encre-doux); font-size: .9rem; }
+    .pagination {
+      display: flex; gap: 1rem; align-items: center; justify-content: center;
+      margin-top: .75rem; font-size: .88rem; color: var(--encre-doux);
+    }
+    .pagination a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .pagination a:hover { text-decoration: underline; }
+    .bouton-ajouter {
+      display: inline-block; background: var(--accent); color: #fff;
+      border-radius: 8px; padding: .5rem 1.2rem; font-weight: 600;
+      text-decoration: none; margin-bottom: .75rem; font-size: .95rem;
+    }
+    .bouton-ajouter:hover { background: var(--accent-fonce); }
     @media (max-width: 1100px) {
       .disposition { grid-template-columns: 1fr; }
     }
@@ -166,14 +193,16 @@
 <body>
   <div class="conteneur">
     <header class="entete">
-      <h1>Suivi d'activité</h1>
+      <h1>Suivi d'activité{% if version %} <span style="font-size: 0.8em; color: var(--encre-doux);">(v{{ version }})</span>{% endif %}</h1>
       <span class="sous-titre">saisie des contacts et prospects</span>
       <nav>
         <a href="/">Saisie</a>
+        <a href="/kpi">KPI</a>
         <a href="/listes">Listes</a>
       </nav>
     </header>
     {% block contenu %}{% endblock %}
   </div>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

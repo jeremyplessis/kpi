@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block titre %}Suivi d'activité — Taux de ghosting{% endblock %}
+
+{% block contenu %}
+
+<div class="carte">
+  <h2 class="section">
+    <a href="/kpi" style="color: var(--accent); text-decoration: none;">← Retour aux KPI</a>
+  </h2>
+  <h2 class="section">Taux de ghosting — Détail mensuel</h2>
+  
+  <form method="get" action="/kpi/TauxGhosting" class="filtres">
+    <div class="en-ligne">
+      <label for="annee_debut">Du</label>
+      <label for="annee_debut" class="visuellement-cache">Année début</label>
+      <select id="annee_debut" name="annee_debut">
+        <option value="">Toutes les années</option>
+        {% for _annee in annees_disponibles %}
+        <option value="{{ _annee }}" {% if annee_debut == _annee|string %}selected{% endif %}>{{ _annee }}</option>
+        {% endfor %}
+      </select>
+      
+      <label for="mois_debut" class="visuellement-cache">Mois début</label>
+      <select id="mois_debut" name="mois_debut">
+        <option value="">Tous les mois</option>
+        {% for _mois in range(1, 13) %}
+        <option value="{{ _mois }}" {% if mois_debut == _mois|string %}selected{% endif %}>{{ _mois }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    
+    <div class="en-ligne">
+      <label for="annee_fin">au</label>
+      <label for="annee_fin" class="visuellement-cache">Année fin</label>
+      <select id="annee_fin" name="annee_fin">
+        <option value="">Toutes les années</option>
+        {% for _annee in annees_disponibles %}
+        <option value="{{ _annee }}" {% if annee_fin == _annee|string %}selected{% endif %}>{{ _annee }}</option>
+        {% endfor %}
+      </select>
+      
+      <label for="mois_fin" class="visuellement-cache">Mois fin</label>
+      <select id="mois_fin" name="mois_fin">
+        <option value="">Tous les mois</option>
+        {% for _mois in range(1, 13) %}
+        <option value="{{ _mois }}" {% if mois_fin == _mois|string %}selected{% endif %}>{{ _mois }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    
+    <button type="submit" class="secondaire">Appliquer les filtres</button>
+    <a class="discret" href="/kpi/TauxGhosting">Effacer les filtres</a>
+  </form>
+</div>
+
+{% if detail_ghosting|length > 0 %}
+
+<div class="carte">
+  <h2 class="section">Détail mensuel du taux de ghosting</h2>
+  
+  <div class="defilement">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Année</th>
+          <th scope="col">Mois</th>
+          <th scope="col">Demandes</th>
+          <th scope="col">Réponses</th>
+          <th scope="col">Taux de ghosting</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for _ligne in detail_ghosting %}
+        <tr>
+          <td>{{ _ligne.annee }}</td>
+          <td>{{ _ligne.mois }}</td>
+          <td style="text-align: right;">{{ _ligne.demandes }}</td>
+          <td style="text-align: right;">{{ _ligne.reponses }}</td>
+          <td style="text-align: right;">
+            {{ "%.1f"|format(_ligne.taux * 100) }} %
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Graphique combiné -->
+<div class="carte">
+  <h2 class="section">Visualisation graphique</h2>
+  <canvas id="chartGhostingDetail" style="max-height: 400px;"></canvas>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const ctx = document.getElementById('chartGhostingDetail');
+      if (!ctx) return;
+      
+      const labels = [
+        {% for _ligne in detail_ghosting %}
+        "{{ _ligne.annee }}/{{ _ligne.mois|string|replace("1", "01")|replace("2", "02")|replace("3", "03")|replace("4", "04")|replace("5", "05")|replace("6", "06")|replace("7", "07")|replace("8", "08")|replace("9", "09") }}"
+        {% if not loop.last %}, {% endif %}
+        {% endfor %}
+      ];
+      
+      const data = {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Demandes',
+            data: [
+              {% for _ligne in detail_ghosting %}
+              {{ _ligne.demandes }}
+              {% if not loop.last %}, {% endif %}
+              {% endfor %}
+            ],
+            backgroundColor: 'rgba(79, 172, 254, 0.7)',
+            borderColor: 'rgba(79, 172, 254, 1)',
+            borderWidth: 1,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Réponses',
+            data: [
+              {% for _ligne in detail_ghosting %}
+              {{ _ligne.reponses }}
+              {% if not loop.last %}, {% endif %}
+              {% endfor %}
+            ],
+            backgroundColor: 'rgba(46, 204, 113, 0.7)',
+            borderColor: 'rgba(46, 204, 113, 1)',
+            borderWidth: 1,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Taux de ghosting (%)',
+            data: [
+              {% for _ligne in detail_ghosting %}
+              {{ _ligne.taux * 100 }}
+              {% if not loop.last %}, {% endif %}
+              {% endfor %}
+            ],
+            backgroundColor: 'rgba(231, 76, 60, 0.2)',
+            borderColor: 'rgba(231, 76, 60, 1)',
+            borderWidth: 2,
+            type: 'line',
+            yAxisID: 'y1'
+          }
+        ]
+      };
+      
+      new Chart(ctx, {
+        type: 'bar',
+        data: data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  let label = context.dataset.label || '';
+                  if (label) {
+                    label += ': ';
+                  }
+                  if (context.dataset.yAxisID === 'y1') {
+                    label += context.parsed.y.toFixed(1) + '%';
+                  } else {
+                    label += context.parsed.y;
+                  }
+                  return label;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              stacked: false
+            },
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              title: { display: true, text: 'Nombre' },
+              beginAtZero: true
+            },
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              title: { display: true, text: 'Taux (%)' },
+              beginAtZero: true,
+              max: 100,
+              grid: {
+                drawOnChartArea: false
+              }
+            }
+          }
+        }
+      });
+    });
+  </script>
+</div>
+
+{% else %}
+<div class="carte">
+  <p style="text-align: center; color: var(--encre-doux);">
+    Aucune donnée de ghosting disponible pour cette période.
+  </p>
+</div>
+{% endif %}
+
+{% endblock %}

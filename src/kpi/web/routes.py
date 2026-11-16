@@ -18,11 +18,17 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from kpi import __version__
 from kpi.bdd.connexion import BaseDonnees
 from kpi.bdd.modeles import (
     PersonneRepository,
     ReferentielRepository,
     SuiviRepository,
+)
+from kpi.kpi.indicateurs import (
+    LigneGhosting,
+    REGISTRE_INDICATEURS,
+    TauxGhosting,
 )
 from kpi.suivi import EvenementSuivi
 
@@ -72,6 +78,9 @@ FILTRES_LISTE = (
     ("filtre_commentaire", "commentaire"),
 )
 
+#: Nombre d'événements affichés par page dans la liste.
+EVENEMENTS_PAR_PAGE = 10
+
 #: Libellés conviviaux des listes sur la page de paramétrage.
 LIBELLES_LISTES = {
     "statut_contact": "Statut du contact",
@@ -103,6 +112,7 @@ class ApplicationWeb:
         _dossier_gabarits = Path(__file__).parent / "gabarits"
         self.modeles = Jinja2Templates(directory=str(_dossier_gabarits))
         self.modeles.env.filters["date_fr"] = formater_date_fr
+        self.modeles.env.globals["version"] = __version__
         self.application = FastAPI(title="Suivi d'activité")
         self._configurer_routes()
 
@@ -123,6 +133,9 @@ class ApplicationWeb:
         _app.post("/listes/ajouter")(self.ajouter_valeur_liste)
         _app.post("/listes/renommer")(self.renommer_valeur_liste)
         _app.post("/listes/retirer")(self.retirer_valeur_liste)
+        # Routes pour la consultation des KPI
+        _app.get("/kpi")(self.page_kpi)
+        _app.get("/kpi/{_indicateur}")(self.page_kpi_indicateur)
 
     def _ouvrir_base(self) -> BaseDonnees:
         """Ouvre une connexion vers la base (le schéma est créé au besoin)."""
@@ -196,6 +209,8 @@ class ApplicationWeb:
             _contexte = self._contexte_page(_requete)
             _contexte["valeurs"] = self._valeurs_depuis_evenement(_evenement)
             _contexte["identifiant"] = _identifiant
+            # La modification exige toujours le formulaire visible.
+            _contexte["afficher_formulaire"] = True
         finally:
             _base.fermer()
         return self.modeles.TemplateResponse(_requete, "saisie.html", _contexte)
@@ -413,6 +428,259 @@ class ApplicationWeb:
             )
         return self._rediriger_vers_listes(_message)
 
+    # ------------------------------------------------------------------
+    # Pages KPI
+    # ------------------------------------------------------------------
+
+    def page_kpi(self, _requete: Request):
+        """Affiche la page de consultation des KPI avec filtres."""
+        _base = self._ouvrir_base()
+        try:
+            _evenements = SuiviRepository(_base).lister()
+            _annees = self._obtenir_annees(_evenements)
+            
+            # Lire les paramètres de filtrage
+            _indicateur_nom = _requete.query_params.get("indicateur", "")
+            _annee_debut = _requete.query_params.get("annee_debut", "")
+            _mois_debut = _requete.query_params.get("mois_debut", "")
+            _annee_fin = _requete.query_params.get("annee_fin", "")
+            _mois_fin = _requete.query_params.get("mois_fin", "")
+            
+            # Filtrer les événements selon la période
+            _evenements_filtres = self._filtrer_par_periode(
+                _evenements, _annee_debut, _mois_debut, _annee_fin, _mois_fin
+            )
+            
+            # Trouver l'indicateur sélectionné
+            _indicateur_classe = None
+            _lignes_indicateur = []
+            _indicateur_libelle = ""
+            _indicateur_description = ""
+            _indicateur_dimensions = []
+            
+            if _indicateur_nom:
+                for _indic_classe in REGISTRE_INDICATEURS:
+                    if _indic_classe.__name__ == _indicateur_nom:
+                        _indicateur_classe = _indic_classe
+                        _indicateur = _indic_classe()
+                        _lignes_indicateur = _indicateur.calculer(_evenements_filtres)
+                        _indicateur_libelle = _indic_classe.libelle
+                        _indicateur_description = _indic_classe.description
+                        _indicateur_dimensions = list(_indic_classe.dimensions)
+                        break
+            
+            # Tableau de bord : synthèses de tous les indicateurs quand
+            # aucun n'est sélectionné.
+            _tableau_de_bord = []
+            if not _indicateur_nom:
+                _tableau_de_bord = self._construire_tableau_de_bord(
+                    _evenements_filtres,
+                    _annee_debut, _mois_debut, _annee_fin, _mois_fin,
+                )
+            
+            _contexte = {
+                "requete": _requete,
+                "indicateurs_disponibles": [
+                    {"nom": _indic.__name__, "libelle": _indic.libelle}
+                    for _indic in REGISTRE_INDICATEURS
+                ],
+                "annees_disponibles": sorted(_annees),
+                "indicateur_selectionne": _indicateur_nom,
+                "annee_debut": _annee_debut,
+                "mois_debut": _mois_debut,
+                "annee_fin": _annee_fin,
+                "mois_fin": _mois_fin,
+                "lignes_indicateur": _lignes_indicateur,
+                "indicateur_libelle": _indicateur_libelle,
+                "indicateur_description": _indicateur_description,
+                "indicateur_dimensions": _indicateur_dimensions,
+                "tableau_de_bord": _tableau_de_bord,
+            }
+        finally:
+            _base.fermer()
+        
+        return self.modeles.TemplateResponse(_requete, "kpi.html", _contexte)
+
+    def page_kpi_indicateur(self, _requete: Request, _indicateur: str):
+        """Affiche une page dédiée pour un indicateur spécifique.
+        
+        Actuellement, seul le TauxGhosting a une page dédiée avec détail.
+        """
+        if _indicateur == "TauxGhosting":
+            return self._page_ghosting_detail(_requete)
+        
+        # Pour les autres indicateurs, rediriger vers la page principale
+        # avec l'indicateur présélectionné
+        _params = dict(_requete.query_params)
+        _params["indicateur"] = _indicateur
+        return RedirectResponse(
+            "/kpi?" + urlencode(_params), status_code=303
+        )
+
+    def _page_ghosting_detail(self, _requete: Request):
+        """Affiche le détail du taux de ghosting avec demandes/réponses."""
+        _base = self._ouvrir_base()
+        try:
+            _evenements = SuiviRepository(_base).lister()
+            _annees = self._obtenir_annees(_evenements)
+            
+            # Lire les paramètres de filtrage
+            _annee_debut = _requete.query_params.get("annee_debut", "")
+            _mois_debut = _requete.query_params.get("mois_debut", "")
+            _annee_fin = _requete.query_params.get("annee_fin", "")
+            _mois_fin = _requete.query_params.get("mois_fin", "")
+            
+            # Filtrer les événements selon la période
+            _evenements_filtres = self._filtrer_par_periode(
+                _evenements, _annee_debut, _mois_debut, _annee_fin, _mois_fin
+            )
+            
+            # Calculer le détail du ghosting
+            _indicateur = TauxGhosting()
+            _detail_ghosting = _indicateur.calculer_detail(_evenements_filtres)
+            
+            _contexte = {
+                "requete": _requete,
+                "annees_disponibles": sorted(_annees),
+                "annee_debut": _annee_debut,
+                "mois_debut": _mois_debut,
+                "annee_fin": _annee_fin,
+                "mois_fin": _mois_fin,
+                "detail_ghosting": _detail_ghosting,
+            }
+        finally:
+            _base.fermer()
+        
+        return self.modeles.TemplateResponse(
+            _requete, "kpi_ghosting.html", _contexte
+        )
+
+    def _obtenir_annees(self, _evenements: list[EvenementSuivi]) -> set[int]:
+        """Retourne l'ensemble des années présentes dans les événements."""
+        return {_ev.annee for _ev in _evenements}
+
+    def _filtrer_par_periode(
+        self,
+        _evenements: list[EvenementSuivi],
+        _annee_debut: str,
+        _mois_debut: str,
+        _annee_fin: str,
+        _mois_fin: str,
+    ) -> list[EvenementSuivi]:
+        """Filtre les événements selon une période.
+        
+        :param _annee_debut: Année de début (vide = pas de filtre)
+        :param _mois_debut: Mois de début (vide = pas de filtre)
+        :param _annee_fin: Année de fin (vide = pas de filtre)
+        :param _mois_fin: Mois de fin (vide = pas de filtre)
+        :returns: Liste filtrée des événements
+        """
+        _resultat = _evenements
+        
+        # Convertir les paramètres en entiers
+        _a_debut = int(_annee_debut) if _annee_debut else None
+        _m_debut = int(_mois_debut) if _mois_debut else None
+        _a_fin = int(_annee_fin) if _annee_fin else None
+        _m_fin = int(_mois_fin) if _mois_fin else None
+        
+        # Si aucune date de début n'est spécifiée, on prend la plus ancienne
+        if _a_debut is None and _m_debut is None:
+            _a_debut = min((_ev.annee for _ev in _resultat), default=None)
+            if _a_debut is not None:
+                _m_debut = 1
+        
+        # Si aucune date de fin n'est spécifiée, on prend la plus récente
+        if _a_fin is None and _m_fin is None:
+            _a_fin = max((_ev.annee for _ev in _resultat), default=None)
+            if _a_fin is not None:
+                _m_fin = 12
+        
+        # Filtrer
+        if _a_debut is not None:
+            _resultat = [
+                _ev for _ev in _resultat
+                if (_ev.annee > _a_debut) or (
+                    _ev.annee == _a_debut and _ev.mois >= (_m_debut or 1)
+                )
+            ]
+        
+        if _a_fin is not None:
+            _resultat = [
+                _ev for _ev in _resultat
+                if (_ev.annee < _a_fin) or (
+                    _ev.annee == _a_fin and _ev.mois <= (_m_fin or 12)
+                )
+            ]
+        
+        return _resultat
+
+    def _construire_tableau_de_bord(
+        self,
+        _evenements: list[EvenementSuivi],
+        _annee_debut: str,
+        _mois_debut: str,
+        _annee_fin: str,
+        _mois_fin: str,
+    ) -> list[dict]:
+        """Construit les cartes de synthèse du tableau de bord.
+
+        Pour chaque indicateur du registre, calcule le total sur la
+        période filtrée et la série mensuelle pour le sparkline.
+
+        :returns: liste de dicts avec nom, libelle, total, pourcentage,
+            serie (liste de [label, valeur]) et lien vers le détail.
+        """
+        _cartes = []
+        _params_filtres = {
+            _k: _v
+            for _k, _v in {
+                "annee_debut": _annee_debut,
+                "mois_debut": _mois_debut,
+                "annee_fin": _annee_fin,
+                "mois_fin": _mois_fin,
+            }.items()
+            if _v
+        }
+        for _classe in REGISTRE_INDICATEURS:
+            _indicateur = _classe()
+            _lignes = _indicateur.calculer(_evenements)
+            _est_pourcentage = _classe.__name__ == "TauxGhosting"
+            # Pour un pourcentage, le total est la moyenne des valeurs
+            # mensuelles (pas la somme) ; pour un comptage, c'est la somme.
+            if _est_pourcentage and _lignes:
+                _total = sum(_ligne.valeur for _ligne in _lignes) / len(_lignes)
+            else:
+                _total = sum(_ligne.valeur for _ligne in _lignes)
+            
+            # Série mensuelle pour le sparkline : regrouper par (année, mois)
+            # ou (année, canal) selon les dimensions de l'indicateur.
+            _serie: list[tuple[str, float]] = []
+            _par_cle: dict[tuple, float] = {}
+            for _ligne in _lignes:
+                _cle = tuple(_ligne.dimensions[:2])
+                _par_cle[_cle] = _par_cle.get(_cle, 0.0) + _ligne.valeur
+            for _cle in sorted(_par_cle):
+                if isinstance(_cle[1], int):
+                    _label = f"{_cle[0]}-{_cle[1]:02d}"
+                else:
+                    _label = f"{_cle[0]} {_cle[1]}"
+                _serie.append((_label, _par_cle[_cle]))
+            
+            # Lien vers le détail avec filtres conservés
+            _params = dict(_params_filtres)
+            _params["indicateur"] = _classe.__name__
+            _lien = "/kpi?" + urlencode(_params)
+            
+            _cartes.append({
+                "nom": _classe.__name__,
+                "libelle": _classe.libelle,
+                "total": _total,
+                "pourcentage": _est_pourcentage,
+                "serie": _serie,
+                "lien": _lien,
+            })
+        return _cartes
+
     def _lire_demande_liste(
         self, _formulaire, champ_valeur: str = "valeur"
     ) -> tuple[str, str, str]:
@@ -443,13 +711,19 @@ class ApplicationWeb:
         La liste des événements est filtrée puis triée selon les
         paramètres d'URL (``filtre_*``, ``tri``, ``sens``), avec par
         défaut la date d'interaction la plus récente en premier.
+        La liste est paginée (30 par page, paramètre ``page``).
         """
         _referentiels = ReferentielRepository(_base := self._ouvrir_base())
         try:
             _tri, _sens, _filtres = self._lire_tri_filtres(_requete)
             _evenements = SuiviRepository(_base).lister()
             _evenements = self._filtrer_evenements(_evenements, _filtres)
-            _evenements = self._trier_evenements(_evenements, _tri, _sens)[:100]
+            _evenements = self._trier_evenements(_evenements, _tri, _sens)
+            _total = len(_evenements)
+            _total_pages = max(1, (_total + EVENEMENTS_PAR_PAGE - 1) // EVENEMENTS_PAR_PAGE)
+            _page = self._lire_page(_requete, _total_pages)
+            _debut = (_page - 1) * EVENEMENTS_PAR_PAGE
+            _evenements = _evenements[_debut : _debut + EVENEMENTS_PAR_PAGE]
             _contexte = {
                 "requete": _requete,
                 "referentiels": {
@@ -457,17 +731,59 @@ class ApplicationWeb:
                     for _table in TABLES_FORMULAIRE
                 },
                 "personnes": PersonneRepository(_base).lister(),
-                # Les événements filtrés, triés (date décroissante par
-                # défaut), limités aux 100 premiers.
+                # Les événements de la page courante, filtrés et triés.
                 "evenements": _evenements,
                 "tris": self._urls_tri(_requete, _filtres, _tri, _sens),
                 "tri_actif": _tri,
                 "sens_actif": _sens,
                 "filtres": _filtres,
+                "page": _page,
+                "total_pages": _total_pages,
+                "total_evenements": _total,
+                "url_page_precedente": self._url_page(_requete, _page - 1),
+                "url_page_suivante": self._url_page(_requete, _page + 1),
+                "afficher_formulaire": self._afficher_formulaire(_requete),
+                "url_afficher_formulaire": self._url_afficher_formulaire(_requete),
+                "url_masquer_formulaire": self._url_masquer_formulaire(_requete),
             }
         finally:
             _base.fermer()
         return _contexte
+
+    def _lire_page(self, _requete: Request, _total_pages: int) -> int:
+        """Lit le numéro de page demandé, borné entre 1 et le total."""
+        try:
+            _page = int(_requete.query_params.get("page", "1") or "1")
+        except ValueError:
+            _page = 1
+        return max(1, min(_page, _total_pages))
+
+    def _afficher_formulaire(self, _requete: Request) -> bool:
+        """Le formulaire est visible si le paramètre d'URL est présent."""
+        return _requete.query_params.get("afficher_formulaire", "") == "1"
+
+    def _url_afficher_formulaire(self, _requete: Request) -> str:
+        """URL du lien « Ajouter » : conserve filtres, tri et page actifs."""
+        _params = dict(_requete.query_params)
+        _params["afficher_formulaire"] = "1"
+        return "/?" + urlencode(_params)
+
+    def _url_masquer_formulaire(self, _requete: Request) -> str:
+        """URL du bouton « Fermer » : conserve filtres, tri et page actifs."""
+        _params = {
+            _k: _v
+            for _k, _v in _requete.query_params.items()
+            if _k != "afficher_formulaire"
+        }
+        if not _params:
+            return "/"
+        return "/?" + urlencode(_params)
+
+    def _url_page(self, _requete: Request, _page: int) -> str:
+        """Construit l'URL d'une page de la liste, filtres et tri conservés."""
+        _params = dict(_requete.query_params)
+        _params["page"] = str(_page)
+        return "/?" + urlencode(_params)
 
     def _lire_tri_filtres(self, _requete: Request) -> tuple[str, str, dict]:
         """Lit le tri et les filtres demandés dans l'URL.
@@ -602,9 +918,14 @@ class ApplicationWeb:
         )
 
     def _rediriger_vers_saisie(self, _personne: str) -> RedirectResponse:
-        """Redirige vers la saisie, la personne restant préremplie."""
+        """Redirige vers la saisie, la personne restant préremplie.
+
+        Le formulaire reste visible après un enregistrement pour
+        enchaîner la saisie du même dossier.
+        """
         return RedirectResponse(
-            f"/?personne={quote(_personne)}&enregistre=1", status_code=303
+            f"/?personne={quote(_personne)}&enregistre=1&afficher_formulaire=1",
+            status_code=303,
         )
 
     def _reafficher_formulaire(
@@ -622,6 +943,8 @@ class ApplicationWeb:
             _contexte["erreurs"] = _erreurs
             if _identifiant is not None:
                 _contexte["identifiant"] = _identifiant
+            # En cas d'erreur, le formulaire reste visible.
+            _contexte["afficher_formulaire"] = True
         finally:
             _base.fermer()
         return self.modeles.TemplateResponse(
