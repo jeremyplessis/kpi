@@ -167,7 +167,7 @@
 <body>
   <div class="conteneur">
     <header class="entete">
-      <h1>Suivi d'activité</h1>
+      <h1>Suivi d'activité{% if version %} <span style="font-size: 0.8em; color: var(--encre-doux);">(v{{ version }})</span>{% endif %}</h1>
       <span class="sous-titre">saisie des contacts et prospects</span>
       <nav>
         <a href="/">Saisie</a>
@@ -177,5 +177,6 @@
     </header>
     {% block contenu %}{% endblock %}
   </div>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

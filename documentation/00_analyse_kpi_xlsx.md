@@ -159,3 +159,10 @@ pour les tests automatisés) :
 - RDV par canal : 28 au total (table figée ; 30 lignes réelles dans le suivi).
 
 Ces valeurs seront figées dans des jeux de tests, en anonymisant les noms de personnes.
+
+## TODO : points restants
+
+### À corriger
+
+- dans la liste des événements, le commentaire est tronqué
+- dans l'onglet "KPI", l'indicateur "Nombre de prospects" ne retourne plus aucune valeur

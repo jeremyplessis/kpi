@@ -18,6 +18,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from kpi import __version__
 from kpi.bdd.connexion import BaseDonnees
 from kpi.bdd.modeles import (
     PersonneRepository,
@@ -108,6 +109,7 @@ class ApplicationWeb:
         _dossier_gabarits = Path(__file__).parent / "gabarits"
         self.modeles = Jinja2Templates(directory=str(_dossier_gabarits))
         self.modeles.env.filters["date_fr"] = formater_date_fr
+        self.modeles.env.globals["version"] = __version__
         self.application = FastAPI(title="Suivi d'activité")
         self._configurer_routes()
 

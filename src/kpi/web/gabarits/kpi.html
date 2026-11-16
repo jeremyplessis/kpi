@@ -22,6 +22,7 @@
     </div>
     
     <div class="en-ligne">
+      <label for="annee_debut">Du</label>
       <label for="annee_debut" class="visuellement-cache">Année début</label>
       <select id="annee_debut" name="annee_debut">
         <option value="">Toutes les années</option>
@@ -40,6 +41,7 @@
     </div>
     
     <div class="en-ligne">
+      <label for="annee_fin">au</label>
       <label for="annee_fin" class="visuellement-cache">Année fin</label>
       <select id="annee_fin" name="annee_fin">
         <option value="">Toutes les années</option>
@@ -80,6 +82,33 @@
 
   <!-- Tableau des données -->
   <div class="defilement">
+    {% if indicateur_dimensions|length >= 2 %}
+    <!-- Tableau avec dépliage pour les indicateurs multi-dimensions -->
+    <table id="tableau-kpi" class="tableau-depliable">
+      <thead>
+        <tr>
+          {% for _dim in indicateur_dimensions %}
+          <th scope="col">{{ _dim }}</th>
+          {% endfor %}
+          <th scope="col">Valeur</th>
+        </tr>
+      </thead>
+      <tbody id="corps-tableau">
+        <!-- Les données seront générées par JavaScript -->
+      </tbody>
+      {% if lignes_indicateur|length == 0 %}
+      <tbody>
+        <tr>
+          <td colspan="{{ indicateur_dimensions|length + 1 }}" style="text-align: center; color: var(--encre-doux);">
+            Aucune donnée disponible pour cette période.
+          </td>
+        </tr>
+      </tbody>
+      {% endif %}
+    </table>
+    
+    {% else %}
+    <!-- Tableau simple pour les indicateurs à 1 dimension -->
     <table>
       <thead>
         <tr>
@@ -113,6 +142,7 @@
       </tbody>
       {% endif %}
     </table>
+    {% endif %}
   </div>
 </div>
 
@@ -395,4 +425,224 @@
 
 {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if indicateur_selectionne and indicateur_dimensions|length >= 2 %}
+<script>
+// Données brutes depuis le serveur
+const lignesIndicateur = [
+  {% for _ligne in lignes_indicateur %}
+  {
+    dimensions: ["{{ _ligne.dimensions|join('", "') }}"],
+    valeur: {{ _ligne.valeur }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+// Noms des dimensions
+const dimensionNames = ["{{ indicateur_dimensions|join('", "') }}"];
+
+// Indique si c'est un pourcentage
+const isPercentage = {{ 1 if indicateur_selectionne == "TauxGhosting" else 0 }};
+
+// Fonction pour formater une valeur
+function formatValue(valeur) {
+  if (isPercentage) {
+    return (valeur * 100).toFixed(1) + '%';
+  } else if (Number.isInteger(valeur)) {
+    return valeur.toString();
+  } else {
+    return valeur.toFixed(2);
+  }
+}
+
+// Construire la structure hiérarchique
+function buildHierarchy(data, dimensions) {
+  const root = {};
+  
+  for (const line of data) {
+    let currentLevel = root;
+    
+    // Parcourir chaque niveau de dimension
+    for (let i = 0; i < dimensions.length; i++) {
+      const dimValue = line.dimensions[i];
+      
+      // Si c'est le dernier niveau, on ajoute la valeur
+      if (i === dimensions.length - 1) {
+        if (!currentLevel.children) {
+          currentLevel.children = {};
+        }
+        currentLevel.children[dimValue] = line.valeur;
+      } else {
+        // Sinon, on crée le niveau suivant
+        if (!currentLevel.children) {
+          currentLevel.children = {};
+        }
+        if (!currentLevel.children[dimValue]) {
+          currentLevel.children[dimValue] = { total: 0 };
+        }
+        currentLevel = currentLevel.children[dimValue];
+      }
+    }
+  }
+  
+  // Calculer les totaux pour chaque niveau
+  function calculateTotals(node) {
+    if (!node.children) return;
+    
+    // Si les enfants sont des valeurs (dernier niveau), calculer le total
+    const childValues = Object.values(node.children);
+    if (childValues.length > 0 && typeof childValues[0] === 'number') {
+      node.total = childValues.reduce((a, b) => a + b, 0);
+    } else {
+      // Sinon, les enfants sont des objets, calculer leur total et le sommer
+      let total = 0;
+      for (const key in node.children) {
+        calculateTotals(node.children[key]);
+        total += node.children[key].total || 0;
+      }
+      node.total = total;
+    }
+  }
+  
+  calculateTotals(root);
+  return root;
+}
+
+// Générer le HTML pour le tableau
+function generateTableHTML(hierarchy, dimensions, depth = 0, isRoot = true) {
+  let html = '';
+  
+  for (const [key, node] of Object.entries(hierarchy)) {
+    const indent = '      ';
+    const hasChildren = node.children && Object.keys(node.children).length > 0;
+    const isLeaf = !hasChildren;
+    
+    // Créer les cellules pour les dimensions
+    const cells = [];
+    for (let i = 0; i < dimensions.length; i++) {
+      if (i === depth) {
+        // Cellule pour ce niveau
+        const toggleIcon = hasChildren ? '<span class="toggle-icon">▶</span> ' : '';
+        cells.push(`<td${depth === 0 ? ' class="niveau-0"' : ''}>${toggleIcon}${key}</td>`);
+      } else if (i < depth) {
+        // Cellules vides pour les niveaux supérieurs
+        cells.push('<td></td>');
+      } else {
+        // Cellules vides pour les niveaux inférieurs (encore à venir)
+        cells.push('<td></td>');
+      }
+    }
+    
+    // Cellule de valeur
+    const valueCell = `<td style="text-align: right;">${formatValue(node.total || node)}</td>`;
+    
+    // Ligne du tableau
+    html += `${indent}<tr class="niveau-${depth}${hasChildren ? ' parent-row' : ''}" data-key="${key}" data-depth="${depth}">\n`;
+    html += `${indent}  ${cells.join('\n' + indent + '  ')}\n`;
+    html += `${indent}  ${valueCell}\n`;
+    html += `${indent}</tr>\n`;
+    
+    // Générer les sous-niveaux si nécessaire
+    if (hasChildren && !isLeaf) {
+      // Créer un conteneur pour les enfants (masqué par défaut)
+      html += `${indent}<tr class="children-container" data-parent="${key}" style="display: none;">\n`;
+      html += `${indent}  <td colspan="${dimensions.length + 1}">\n`;
+      html += generateTableHTML(node.children, dimensions, depth + 1, false);
+      html += `${indent}  </td>\n`;
+      html += `${indent}</tr>\n`;
+    }
+  }
+  
+  return html;
+}
+
+// Initialisation au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+  const tableauBody = document.getElementById('corps-tableau');
+  if (!tableauBody) return;
+  
+  // Construire la hiérarchie
+  const hierarchy = buildHierarchy(lignesIndicateur, dimensionNames);
+  
+  // Générer le HTML
+  const html = generateTableHTML(hierarchy, dimensionNames);
+  tableauBody.innerHTML = html || '<tr><td colspan="' + (dimensionNames.length + 1) + '" style="text-align: center; color: var(--encre-doux);">Aucune donnée disponible</td></tr>';
+  
+  // Ajouter les gestionnaires de clic pour le dépliage
+  document.querySelectorAll('.parent-row').forEach(row => {
+    row.addEventListener('click', function(e) {
+      // Ne pas déclencher si on clique sur un lien ou autre élément interactif
+      if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') return;
+      
+      const key = this.getAttribute('data-key');
+      const depth = parseInt(this.getAttribute('data-depth'));
+      const container = document.querySelector(`tr.children-container[data-parent="${key}"]`);
+      const icon = this.querySelector('.toggle-icon');
+      
+      if (container) {
+        const isHidden = container.style.display === 'none';
+        container.style.display = isHidden ? '' : 'none';
+        
+        if (icon) {
+          icon.textContent = isHidden ? '▼' : '▶';
+        }
+        
+        // Toggle la classe pour le style
+        this.classList.toggle('expanded');
+      }
+    });
+    
+    // Rendre la ligne cliquable (cursor: pointer)
+    row.style.cursor = 'pointer';
+  });
+});
+</script>
+
+<style>
+  /* Styles pour le tableau dépliable */
+  .tableau-depliable .parent-row {
+    cursor: pointer;
+  }
+  
+  .tableau-depliable .parent-row:hover {
+    background-color: var(--fond);
+  }
+  
+  .tableau-depliable .toggle-icon {
+    font-size: 0.8em;
+    color: var(--encre-doux);
+    margin-right: 0.25em;
+    display: inline-block;
+    width: 1em;
+    text-align: center;
+  }
+  
+  .tableau-depliable .parent-row.expanded .toggle-icon {
+    transform: rotate(0deg);
+  }
+  
+  .tableau-depliable tr.children-container td {
+    padding: 0 !important;
+  }
+  
+  .tableau-depliable .niveau-0 {
+    font-weight: 600;
+  }
+  
+  .tableau-depliable .niveau-1 {
+    padding-left: 1.5rem;
+  }
+  
+  .tableau-depliable .niveau-2 {
+    padding-left: 3rem;
+  }
+  
+  .tableau-depliable .niveau-3 {
+    padding-left: 4.5rem;
+  }
+</style>
+{% endif %}
 {% endblock %}
