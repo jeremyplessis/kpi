@@ -64,6 +64,24 @@
   </form>
 </div>
 
+{% if not indicateur_selectionne and tableau_de_bord %}
+<div class="grille-cartes">
+  {% for _carte in tableau_de_bord %}
+  <a href="{{ _carte.lien }}" class="carte-lien">
+    <div class="carte carte-kpi">
+      <h3 class="carte-titre">{{ _carte.libelle }}</h3>
+      <p class="carte-total">{% if _carte.pourcentage %}{{ "%.1f"|format(_carte.total * 100) }} %{% else %}{{ _carte.total|int }}{% endif %}</p>
+      {% if _carte.serie|length > 1 %}
+      <canvas id="spark-{{ _carte.nom }}" class="sparkline" style="max-height: 50px;"></canvas>
+      {% else %}
+      <p class="aide" style="text-align: center;">Période trop courte pour une tendance</p>
+      {% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if indicateur_selectionne %}
 
 <div class="carte">
@@ -643,6 +661,37 @@ document.addEventListener('DOMContentLoaded', function() {
   .tableau-depliable .niveau-3 {
     padding-left: 4.5rem;
   }
+</style>
+{% endif %}
+{% if not indicateur_selectionne and tableau_de_bord %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  {% for _carte in tableau_de_bord %}
+  {% if _carte.serie|length > 1 %}
+  (function() {
+    const ctx = document.getElementById('spark-{{ _carte.nom }}');
+    if (!ctx) return;
+    const labels = {{ _carte.serie|map(attribute=0)|list|tojson }};
+    let data = {{ _carte.serie|map(attribute=1)|list|tojson }};
+    {% if _carte.pourcentage %}data = data.map(v => v * 100);{% endif %}
+    new Chart(ctx, {
+      type: 'line',
+      data: { labels: labels, datasets: [{ data: data, borderColor: 'rgba(180, 89, 59, 0.8)', backgroundColor: 'rgba(180, 89, 59, 0.1)', borderWidth: 2, fill: true, pointRadius: 2, tension: 0.3 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+    });
+  })();
+  {% endif %}
+  {% endfor %}
+});
+</script>
+<style>
+.grille-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.carte-lien { text-decoration: none; color: inherit; display: block; }
+.carte-lien:hover .carte-kpi { border-color: var(--accent); box-shadow: 0 2px 8px rgba(180, 89, 59, 0.15); }
+.carte-kpi { margin-bottom: 0; text-align: center; transition: border-color 0.15s, box-shadow 0.15s; }
+.carte-titre { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--encre-doux); margin: 0 0 0.5rem; }
+.carte-total { font-size: 2rem; font-weight: 700; color: var(--accent); margin: 0 0 0.5rem; }
+.sparkline { width: 100%; }
 </style>
 {% endif %}
 {% endblock %}

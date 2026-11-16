@@ -1,0 +1,10 @@
+schema: spec-driven
+
+# Répertoire des changes proposés/en cours
+changes_dir: changes
+
+# Répertoire des specs du projet (capabilities validées)
+specs_dir: specs
+
+# Répertoire d'archivage des changes terminés
+archive_dir: changes/archive

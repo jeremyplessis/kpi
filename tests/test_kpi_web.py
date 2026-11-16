@@ -177,6 +177,68 @@ class TestEcranKPI(unittest.TestCase):
             _reponse.headers.get("location", "").endswith("/kpi?indicateur=NbDemandes")
         )
 
+    def test_tableau_bord_affiche_cartes(self):
+        """La page /kpi sans indicateur affiche les 4 cartes du tableau de bord."""
+        _reponse = self.client.get("/kpi")
+        self.assertEqual(_reponse.status_code, 200)
+        _texte = _reponse.text
+        self.assertIn("Nombre de prospects", _texte)
+        self.assertIn("Nombre de demandes", _texte)
+        self.assertIn("Taux de ghosting", _texte)
+        self.assertIn("RDV par canal", _texte)
+        # Les sparklines sont présents pour les indicateurs multi-mois
+        self.assertIn("spark-NbProspects", _texte)
+        self.assertIn("spark-NbDemandes", _texte)
+        self.assertIn("spark-TauxGhosting", _texte)
+
+    def test_tableau_bord_totaux(self):
+        """Les totaux des cartes correspondent aux données de test.
+
+        Jeu : Alice (demande 15/01, réponse 17/01, RDV), Bob (demande
+        16/01), Charlie (demande 01/02). Totaux : prospects 3, demandes 3,
+        ghosting 75%, RDV 1. Les sparklines embarquent les séries mensuelles.
+        """
+        _reponse = self.client.get("/kpi")
+        self.assertEqual(_reponse.status_code, 200)
+        _texte = _reponse.text
+        # Taux de ghosting moyen affiché en pourcentage
+        self.assertIn("75.0 %", _texte)
+        # Séries mensuelles dans les sparklines : NbProspects = [3.0, 1.0]
+        self.assertIn("[3.0, 1.0]", _texte)
+        # NbDemandes = [2.0, 1.0]
+        self.assertIn("[2.0, 1.0]", _texte)
+
+    def test_tableau_bord_filtre_periode(self):
+        """Les filtres de période s'appliquent au tableau de bord."""
+        _reponse = self.client.get(
+            "/kpi?annee_debut=2026&mois_debut=1&annee_fin=2026&mois_fin=1"
+        )
+        self.assertEqual(_reponse.status_code, 200)
+        _texte = _reponse.text
+        # Janvier seul : ghosting 50% (2 demandes, 1 réponse)
+        self.assertIn("50.0 %", _texte)
+
+    def test_carte_cliquable(self):
+        """Chaque carte contient un lien vers l'indicateur avec filtres conservés."""
+        _reponse = self.client.get(
+            "/kpi?annee_debut=2026&mois_debut=1&annee_fin=2026&mois_fin=2"
+        )
+        self.assertEqual(_reponse.status_code, 200)
+        _texte = _reponse.text
+        self.assertIn("indicateur=TauxGhosting", _texte)
+        self.assertIn("annee_debut=2026", _texte)
+
+    def test_coherence_total_detail(self):
+        """Le total de la carte égale la somme du tableau détaillé."""
+        _reponse = self.client.get("/kpi")
+        self.assertEqual(_reponse.status_code, 200)
+        _reponse_detail = self.client.get("/kpi?indicateur=NbDemandes")
+        self.assertEqual(_reponse_detail.status_code, 200)
+        # La série NbDemandes dans le tableau de bord = [2.0, 1.0] (total 3)
+        # et le détail affiche aussi 3 demandes au total
+        self.assertIn("[2.0, 1.0]", _reponse.text)
+        self.assertIn(">3<", _reponse_detail.text)
+
 
 def _evenement(
     _date: date,

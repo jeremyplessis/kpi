@@ -11,7 +11,7 @@ entrepreneurs individuels (en cours de développement : voir
 | 1 | Base SQLite, référentiels, import du classeur | Terminé |
 | 2 | Moteur de calcul des indicateurs existants | Terminé |
 | 3 | Écran de saisie du suivi | Terminé |
-| 4 | Écrans de consultation KPI + export PDF | À venir |
+| 4 | Écrans de consultation KPI + export PDF | 🟡 Tableau de bord fait, PDF à venir |
 | 5 | Connecteur Google Analytics 4 | À venir |
 
 ## Mise en route
@@ -47,7 +47,8 @@ dossier `documentation/` :
 - `01_proposition_architecture.md` : architecture de l'application et
   décisions actées ;
 - `02_import_initial.md` : guide de l'import du classeur et des tests ;
-- `03_ecran_saisie.md` : guide de l'écran de saisie du suivi.
+- `03_ecran_saisie.md` : guide de l'écran de saisie du suivi ;
+- `04_ecran_consultation.md` : guide de l'écran de consultation des KPI (tableau de bord).
 
 ## Conventions de code
 

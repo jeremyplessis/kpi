@@ -464,6 +464,15 @@ class ApplicationWeb:
                         _indicateur_dimensions = list(_indic_classe.dimensions)
                         break
             
+            # Tableau de bord : synthèses de tous les indicateurs quand
+            # aucun n'est sélectionné.
+            _tableau_de_bord = []
+            if not _indicateur_nom:
+                _tableau_de_bord = self._construire_tableau_de_bord(
+                    _evenements_filtres,
+                    _annee_debut, _mois_debut, _annee_fin, _mois_fin,
+                )
+            
             _contexte = {
                 "requete": _requete,
                 "indicateurs_disponibles": [
@@ -480,6 +489,7 @@ class ApplicationWeb:
                 "indicateur_libelle": _indicateur_libelle,
                 "indicateur_description": _indicateur_description,
                 "indicateur_dimensions": _indicateur_dimensions,
+                "tableau_de_bord": _tableau_de_bord,
             }
         finally:
             _base.fermer()
@@ -598,6 +608,73 @@ class ApplicationWeb:
             ]
         
         return _resultat
+
+    def _construire_tableau_de_bord(
+        self,
+        _evenements: list[EvenementSuivi],
+        _annee_debut: str,
+        _mois_debut: str,
+        _annee_fin: str,
+        _mois_fin: str,
+    ) -> list[dict]:
+        """Construit les cartes de synthèse du tableau de bord.
+
+        Pour chaque indicateur du registre, calcule le total sur la
+        période filtrée et la série mensuelle pour le sparkline.
+
+        :returns: liste de dicts avec nom, libelle, total, pourcentage,
+            serie (liste de [label, valeur]) et lien vers le détail.
+        """
+        _cartes = []
+        _params_filtres = {
+            _k: _v
+            for _k, _v in {
+                "annee_debut": _annee_debut,
+                "mois_debut": _mois_debut,
+                "annee_fin": _annee_fin,
+                "mois_fin": _mois_fin,
+            }.items()
+            if _v
+        }
+        for _classe in REGISTRE_INDICATEURS:
+            _indicateur = _classe()
+            _lignes = _indicateur.calculer(_evenements)
+            _est_pourcentage = _classe.__name__ == "TauxGhosting"
+            # Pour un pourcentage, le total est la moyenne des valeurs
+            # mensuelles (pas la somme) ; pour un comptage, c'est la somme.
+            if _est_pourcentage and _lignes:
+                _total = sum(_ligne.valeur for _ligne in _lignes) / len(_lignes)
+            else:
+                _total = sum(_ligne.valeur for _ligne in _lignes)
+            
+            # Série mensuelle pour le sparkline : regrouper par (année, mois)
+            # ou (année, canal) selon les dimensions de l'indicateur.
+            _serie: list[tuple[str, float]] = []
+            _par_cle: dict[tuple, float] = {}
+            for _ligne in _lignes:
+                _cle = tuple(_ligne.dimensions[:2])
+                _par_cle[_cle] = _par_cle.get(_cle, 0.0) + _ligne.valeur
+            for _cle in sorted(_par_cle):
+                if isinstance(_cle[1], int):
+                    _label = f"{_cle[0]}-{_cle[1]:02d}"
+                else:
+                    _label = f"{_cle[0]} {_cle[1]}"
+                _serie.append((_label, _par_cle[_cle]))
+            
+            # Lien vers le détail avec filtres conservés
+            _params = dict(_params_filtres)
+            _params["indicateur"] = _classe.__name__
+            _lien = "/kpi?" + urlencode(_params)
+            
+            _cartes.append({
+                "nom": _classe.__name__,
+                "libelle": _classe.libelle,
+                "total": _total,
+                "pourcentage": _est_pourcentage,
+                "serie": _serie,
+                "lien": _lien,
+            })
+        return _cartes
 
     def _lire_demande_liste(
         self, _formulaire, champ_valeur: str = "valeur"
