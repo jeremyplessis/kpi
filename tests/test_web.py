@@ -6,6 +6,7 @@ un enregistrement réussi aboutit donc à la page de saisie avec message de
 confirmation, jamais à un double enregistrement lors du rafraîchissement.
 """
 
+import re
 import sys
 import tempfile
 import unittest
@@ -65,14 +66,63 @@ class TestEcranSaisie(unittest.TestCase):
             _base.fermer()
 
     def test_page_saisie(self) -> None:
-        """La page affiche le formulaire en trois groupes et les référentiels."""
+        """Par défaut, seul le lien « Ajouter » est visible (formulaire masqué)."""
         _reponse = self._client.get("/")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn("Ajouter un événement", _reponse.text)
+        self.assertIn("afficher_formulaire=1", _reponse.text)
+        self.assertNotIn("Qui et quand", _reponse.text)
+
+    def test_page_saisie_avec_formulaire(self) -> None:
+        """Le formulaire s'affiche avec ?afficher_formulaire=1."""
+        _reponse = self._client.get("/?afficher_formulaire=1")
         self.assertEqual(_reponse.status_code, 200)
         self.assertIn("Qui et quand", _reponse.text)
         self.assertIn("La demande", _reponse.text)
         self.assertIn("La réponse de la photographe", _reponse.text)
         self.assertIn("mail", _reponse.text)
         self.assertIn("Un nom absent de la liste sera créé automatiquement", _reponse.text)
+
+    def test_lien_ajouter_conserve_filtres_et_page(self) -> None:
+        """Le lien « Ajouter » conserve les filtres, le tri et la page actifs."""
+        _reponse = self._client.get("/?filtre_personne=alice&tri=personne&sens=asc&page=2")
+        self.assertIn("afficher_formulaire=1", _reponse.text)
+        self.assertIn("filtre_personne=alice", _reponse.text)
+        self.assertIn("page=2", _reponse.text)
+
+    def test_apres_enregistrement_formulaire_reste_visible(self) -> None:
+        """La redirection après enregistrement conserve afficher_formulaire=1."""
+        _reponse = self._client.post(
+            "/evenements",
+            data={"date": "2025-01-14", "personne": "Alice Martin"},
+        )
+        self.assertIn("afficher_formulaire=1", str(_reponse.url))
+        self.assertIn("Qui et quand", _reponse.text)
+
+    def test_bouton_fermer_masque_le_formulaire(self) -> None:
+        """Quand le formulaire est visible, « Fermer » est à côté du titre.
+
+        Le lien conserve les filtres actifs mais retire afficher_formulaire.
+        """
+        _reponse = self._client.get("/?afficher_formulaire=1&filtre_personne=alice&page=2")
+        # « Fermer » est dans l'en-tête du formulaire, à côté du titre.
+        self.assertIn('entete-formulaire', _reponse.text)
+        _m = re.search(
+            r'<div class="entete-formulaire">.*?Nouvel événement.*?Fermer.*?</div>',
+            _reponse.text, re.DOTALL,
+        )
+        self.assertIsNotNone(_m, "Le lien Fermer doit être à côté du titre")
+        self.assertIn("filtre_personne=alice", _reponse.text)
+        # Le lien Fermer ne contient pas afficher_formulaire.
+        _liens_fermer = re.findall(r'href="([^"]*page=2[^"]*)"', _reponse.text)
+        self.assertTrue(any("afficher_formulaire" not in _l for _l in _liens_fermer))
+
+    def test_formulaire_sans_lien_gerer_listes(self) -> None:
+        """Le lien « Gérer les listes » n'est plus dans le formulaire."""
+        _reponse = self._client.get("/?afficher_formulaire=1")
+        self.assertNotIn("Gérer les listes", _reponse.text)
+        # Le lien « Listes » reste dans la barre de navigation.
+        self.assertIn('href="/listes"', _reponse.text)
 
     def test_enregistrement_et_redirection(self) -> None:
         """Un enregistrement valide crée l'événement puis confirme.
@@ -120,7 +170,7 @@ class TestEcranSaisie(unittest.TestCase):
             "/evenements",
             data={"date": "2025-02-01", "personne": "Bob Dupont", "commentaire": ""},
         )
-        _reponse = self._client.get("/")
+        _reponse = self._client.get("/?afficher_formulaire=1")
         # La valeur est présente dans le champ du formulaire.
         self.assertIn('value="Bob Dupont"', _reponse.text)
 
@@ -274,6 +324,45 @@ class TestEcranSaisie(unittest.TestCase):
         self.assertIn("Alice Martin", _reponse.text)
         self.assertIn("14/01/2025", _reponse.text)
 
+    def test_commentaire_complet_dans_liste(self) -> None:
+        """Un commentaire long est présent en entier dans le HTML de la liste."""
+        _commentaire_long = (
+            "Premier contact par Instagram, la personne souhaite un devis "
+            "pour un mariage en juin 2025 avec une cinquantaine d invites, "
+            "budget serre, a suivre rapidement."
+        )
+        self._client.post(
+            "/evenements",
+            data={"date": "2025-01-14", "personne": "Alice Martin", "commentaire": _commentaire_long},
+        )
+        _reponse = self._client.get("/")
+        self.assertIn(_commentaire_long, _reponse.text)
+
+    def test_commentaire_title(self) -> None:
+        """La cellule commentaire a un attribut title avec le commentaire complet."""
+        _commentaire = "Rendez-vous confirmé pour le 15 mars à 14h au studio."
+        self._client.post(
+            "/evenements",
+            data={"date": "2025-01-14", "personne": "Bob Dupont", "commentaire": _commentaire},
+        )
+        _reponse = self._client.get("/")
+        self.assertIn(f'title="{_commentaire}"', _reponse.text)
+
+    def test_commentaire_sans_title_si_vide(self) -> None:
+        """Pas d'attribut title quand le commentaire est vide."""
+        self._client.post(
+            "/evenements",
+            data={"date": "2025-01-14", "personne": "Chloé Bernard", "commentaire": ""},
+        )
+        _reponse = self._client.get("/")
+        self.assertNotIn('class="commentaire" title=', _reponse.text)
+
+    def test_commentaire_css_sans_troncature(self) -> None:
+        """Le CSS du tableau garantit le retour à la ligne sans troncature."""
+        _reponse = self._client.get("/")
+        self.assertIn("max-width: 22rem", _reponse.text)
+        self.assertIn("overflow-wrap: break-word", _reponse.text)
+
 
 class TestTriEtFiltres(unittest.TestCase):
     """Tests du tri et des filtres de la liste des événements."""
@@ -394,6 +483,80 @@ class TestTriEtFiltres(unittest.TestCase):
         self.assertIn("▼", _reponse.text)
 
 
+class TestPagination(unittest.TestCase):
+    """Tests de la pagination de la liste des événements (10 par page)."""
+
+    def setUp(self) -> None:
+        """Prépare une base avec 25 événements sur des dates distinctes."""
+        self._dossier = tempfile.TemporaryDirectory()
+        self._chemin_base = Path(self._dossier.name) / "test.sqlite3"
+        _base = BaseDonnees(self._chemin_base)
+        try:
+            _referentiels = ReferentielRepository(_base)
+            for _table, _valeurs in REFERENTIELS_TEST.items():
+                for _valeur in _valeurs:
+                    _referentiels.obtenir_ou_creer(_table, _valeur)
+            _base.valider()
+        finally:
+            _base.fermer()
+        self._application = ApplicationWeb(self._chemin_base)
+        self._client = TestClient(self._application.application)
+        # 25 événements du 01/01/2025 au 25/01/2025.
+        for _jour in range(1, 26):
+            self._client.post(
+                "/evenements",
+                data={"date": f"2025-01-{_jour:02d}", "personne": f"Pers{_jour:02d}"},
+            )
+
+    def tearDown(self) -> None:
+        """Supprime le dossier temporaire."""
+        self._dossier.cleanup()
+
+    def test_page_1_affiche_10_evenements_et_lien_suivant(self) -> None:
+        """La page 1 affiche 10 événements et un lien vers la page 2."""
+        _reponse = self._client.get("/")
+        self.assertIn("Page 1 / 3", _reponse.text)
+        self.assertIn("25 événements", _reponse.text)
+        self.assertIn("Suivant", _reponse.text)
+        self.assertNotIn("Précédent", _reponse.text)
+        # Le plus récent (25/01/2025) est en page 1.
+        self.assertIn("25/01/2025", _reponse.text)
+        # Le plus ancien (01/01/2025) est en page 3, pas en page 1.
+        self.assertNotIn("01/01/2025", _reponse.text)
+
+    def test_page_3_affiche_les_5_restants(self) -> None:
+        """La dernière page affiche les 5 derniers événements."""
+        _reponse = self._client.get("/?page=3")
+        self.assertIn("Page 3 / 3", _reponse.text)
+        self.assertIn("Précédent", _reponse.text)
+        self.assertNotIn("Suivant", _reponse.text)
+        self.assertIn("01/01/2025", _reponse.text)
+        self.assertNotIn("25/01/2025", _reponse.text)
+
+    def test_page_invalide_retombe_sur_1(self) -> None:
+        """Un numéro de page invalide ou hors limites retombe sur une page valide."""
+        _reponse = self._client.get("/?page=abc")
+        self.assertIn("Page 1 / 3", _reponse.text)
+        _reponse = self._client.get("/?page=99")
+        self.assertIn("Page 3 / 3", _reponse.text)
+
+    def test_pagination_conserve_les_filtres(self) -> None:
+        """Les filtres réduisent le nombre d'événements affichés.
+
+        La vérification porte sur les dates des lignes du tableau (les
+        noms apparaissent aussi dans le datalist du formulaire).
+        """
+        _reponse = self._client.get("/?filtre_personne=pers2")
+        self.assertIn("20/01/2025", _reponse.text)
+        self.assertNotIn("01/01/2025", _reponse.text)
+
+    def test_moins_de_10_evenements_pas_de_pagination(self) -> None:
+        """Avec 10 événements ou moins, tous sont affichés sans barre de pagination."""
+        _reponse = self._client.get("/?filtre_personne=pers1")
+        # pers1 matche pers10 à pers19 (10 événements) -> pas de pagination.
+        self.assertNotIn("Page 1 /", _reponse.text)
+
+
 class TestGestionListes(unittest.TestCase):
     """Tests de la page de gestion des valeurs des listes déroulantes."""
 
@@ -439,7 +602,7 @@ class TestGestionListes(unittest.TestCase):
         self.assertIn("ajouté à la liste", _reponse.text)
         _reponse = self._client.get("/listes")
         self.assertIn("tiktok", _reponse.text)
-        _reponse = self._client.get("/")
+        _reponse = self._client.get("/?afficher_formulaire=1")
         self.assertIn("tiktok", _reponse.text)
 
     def test_ajout_de_valeur_vide_refuse(self) -> None:
