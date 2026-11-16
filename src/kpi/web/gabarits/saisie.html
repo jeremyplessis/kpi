@@ -29,8 +29,9 @@
 
 {% block contenu %}
 
-<div class="disposition">
+<div class="disposition{% if not afficher_formulaire %} sans-formulaire{% endif %}">
 
+{% if afficher_formulaire %}
 <div class="colonne-saisie">
 
 {% if message_enregistrement %}
@@ -48,11 +49,14 @@
 {% endif %}
 
 <div class="carte">
-  {% if identifiant is defined %}
-  <h2 class="section">Modifier un événement</h2>
-  {% else %}
-  <h2 class="section">Nouvel événement</h2>
-  {% endif %}
+  <div class="entete-formulaire">
+    {% if identifiant is defined %}
+    <h2 class="section">Modifier un événement</h2>
+    {% else %}
+    <h2 class="section">Nouvel événement</h2>
+    {% endif %}
+    <a class="discret" href="{{ url_masquer_formulaire }}">Fermer</a>
+  </div>
 
   <form method="post"
         action="{% if identifiant is defined %}/evenements/{{ identifiant }}/modifier{% else %}/evenements{% endif %}"
@@ -112,17 +116,20 @@
         {% if identifiant is defined %}Enregistrer la correction{% else %}Enregistrer l'événement{% endif %}
       </button>
       <a class="discret" href="/">Tout effacer</a>
-      <a class="discret" href="/listes">Gérer les listes</a>
     </div>
   </form>
 </div>
 
 </div>
+{% endif %}
 
 <div class="colonne-liste">
 
 <div class="carte">
   <h2 class="section">Derniers événements</h2>
+  {% if not afficher_formulaire %}
+  <p><a class="bouton-ajouter" href="{{ url_afficher_formulaire }}">+ Ajouter un événement</a></p>
+  {% endif %}
   <form class="filtres" method="get" action="/">
     <input type="text" name="filtre_personne" placeholder="Personne…"
            value="{{ filtres.filtre_personne }}" aria-label="Filtrer par personne">
@@ -167,12 +174,19 @@
           <td>{{ _evenement.action_public or "" }}</td>
           <td>{{ _evenement.canal or "" }}</td>
           <td>{{ _evenement.action_photographe or "" }}</td>
-          <td class="commentaire">{{ _evenement.commentaire or "" }}</td>
+          <td class="commentaire"{% if _evenement.commentaire %} title="{{ _evenement.commentaire }}"{% endif %}><div>{{ _evenement.commentaire or "" }}</div></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% if total_pages > 1 %}
+  <nav class="pagination">
+    {% if page > 1 %}<a href="{{ url_page_precedente }}">← Précédent</a>{% endif %}
+    <span>Page {{ page }} / {{ total_pages }} ({{ total_evenements }} événements)</span>
+    {% if page < total_pages %}<a href="{{ url_page_suivante }}">Suivant →</a>{% endif %}
+  </nav>
+  {% endif %}
   {% else %}
   {% set _filtres_actifs = filtres.values() | join("") | trim %}
   {% if _filtres_actifs %}

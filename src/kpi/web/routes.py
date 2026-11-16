@@ -78,6 +78,9 @@ FILTRES_LISTE = (
     ("filtre_commentaire", "commentaire"),
 )
 
+#: Nombre d'événements affichés par page dans la liste.
+EVENEMENTS_PAR_PAGE = 10
+
 #: Libellés conviviaux des listes sur la page de paramétrage.
 LIBELLES_LISTES = {
     "statut_contact": "Statut du contact",
@@ -206,6 +209,8 @@ class ApplicationWeb:
             _contexte = self._contexte_page(_requete)
             _contexte["valeurs"] = self._valeurs_depuis_evenement(_evenement)
             _contexte["identifiant"] = _identifiant
+            # La modification exige toujours le formulaire visible.
+            _contexte["afficher_formulaire"] = True
         finally:
             _base.fermer()
         return self.modeles.TemplateResponse(_requete, "saisie.html", _contexte)
@@ -706,13 +711,19 @@ class ApplicationWeb:
         La liste des événements est filtrée puis triée selon les
         paramètres d'URL (``filtre_*``, ``tri``, ``sens``), avec par
         défaut la date d'interaction la plus récente en premier.
+        La liste est paginée (30 par page, paramètre ``page``).
         """
         _referentiels = ReferentielRepository(_base := self._ouvrir_base())
         try:
             _tri, _sens, _filtres = self._lire_tri_filtres(_requete)
             _evenements = SuiviRepository(_base).lister()
             _evenements = self._filtrer_evenements(_evenements, _filtres)
-            _evenements = self._trier_evenements(_evenements, _tri, _sens)[:100]
+            _evenements = self._trier_evenements(_evenements, _tri, _sens)
+            _total = len(_evenements)
+            _total_pages = max(1, (_total + EVENEMENTS_PAR_PAGE - 1) // EVENEMENTS_PAR_PAGE)
+            _page = self._lire_page(_requete, _total_pages)
+            _debut = (_page - 1) * EVENEMENTS_PAR_PAGE
+            _evenements = _evenements[_debut : _debut + EVENEMENTS_PAR_PAGE]
             _contexte = {
                 "requete": _requete,
                 "referentiels": {
@@ -720,17 +731,59 @@ class ApplicationWeb:
                     for _table in TABLES_FORMULAIRE
                 },
                 "personnes": PersonneRepository(_base).lister(),
-                # Les événements filtrés, triés (date décroissante par
-                # défaut), limités aux 100 premiers.
+                # Les événements de la page courante, filtrés et triés.
                 "evenements": _evenements,
                 "tris": self._urls_tri(_requete, _filtres, _tri, _sens),
                 "tri_actif": _tri,
                 "sens_actif": _sens,
                 "filtres": _filtres,
+                "page": _page,
+                "total_pages": _total_pages,
+                "total_evenements": _total,
+                "url_page_precedente": self._url_page(_requete, _page - 1),
+                "url_page_suivante": self._url_page(_requete, _page + 1),
+                "afficher_formulaire": self._afficher_formulaire(_requete),
+                "url_afficher_formulaire": self._url_afficher_formulaire(_requete),
+                "url_masquer_formulaire": self._url_masquer_formulaire(_requete),
             }
         finally:
             _base.fermer()
         return _contexte
+
+    def _lire_page(self, _requete: Request, _total_pages: int) -> int:
+        """Lit le numéro de page demandé, borné entre 1 et le total."""
+        try:
+            _page = int(_requete.query_params.get("page", "1") or "1")
+        except ValueError:
+            _page = 1
+        return max(1, min(_page, _total_pages))
+
+    def _afficher_formulaire(self, _requete: Request) -> bool:
+        """Le formulaire est visible si le paramètre d'URL est présent."""
+        return _requete.query_params.get("afficher_formulaire", "") == "1"
+
+    def _url_afficher_formulaire(self, _requete: Request) -> str:
+        """URL du lien « Ajouter » : conserve filtres, tri et page actifs."""
+        _params = dict(_requete.query_params)
+        _params["afficher_formulaire"] = "1"
+        return "/?" + urlencode(_params)
+
+    def _url_masquer_formulaire(self, _requete: Request) -> str:
+        """URL du bouton « Fermer » : conserve filtres, tri et page actifs."""
+        _params = {
+            _k: _v
+            for _k, _v in _requete.query_params.items()
+            if _k != "afficher_formulaire"
+        }
+        if not _params:
+            return "/"
+        return "/?" + urlencode(_params)
+
+    def _url_page(self, _requete: Request, _page: int) -> str:
+        """Construit l'URL d'une page de la liste, filtres et tri conservés."""
+        _params = dict(_requete.query_params)
+        _params["page"] = str(_page)
+        return "/?" + urlencode(_params)
 
     def _lire_tri_filtres(self, _requete: Request) -> tuple[str, str, dict]:
         """Lit le tri et les filtres demandés dans l'URL.
@@ -865,9 +918,14 @@ class ApplicationWeb:
         )
 
     def _rediriger_vers_saisie(self, _personne: str) -> RedirectResponse:
-        """Redirige vers la saisie, la personne restant préremplie."""
+        """Redirige vers la saisie, la personne restant préremplie.
+
+        Le formulaire reste visible après un enregistrement pour
+        enchaîner la saisie du même dossier.
+        """
         return RedirectResponse(
-            f"/?personne={quote(_personne)}&enregistre=1", status_code=303
+            f"/?personne={quote(_personne)}&enregistre=1&afficher_formulaire=1",
+            status_code=303,
         )
 
     def _reafficher_formulaire(
@@ -885,6 +943,8 @@ class ApplicationWeb:
             _contexte["erreurs"] = _erreurs
             if _identifiant is not None:
                 _contexte["identifiant"] = _identifiant
+            # En cas d'erreur, le formulaire reste visible.
+            _contexte["afficher_formulaire"] = True
         finally:
             _base.fermer()
         return self.modeles.TemplateResponse(

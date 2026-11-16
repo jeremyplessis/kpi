@@ -138,10 +138,14 @@ arrêter l'application : `Ctrl+C` dans le terminal.
 
 ## L'écran de saisie
 
-L'écran se présente en deux colonnes : le formulaire de saisie à
-gauche, la liste des derniers événements à droite (les deux se
-superposent sur petit écran). Le formulaire est organisé en trois
-groupes, calqués sur le classeur d'origine :
+L'écran se présente autour de la liste des **Derniers événements**,
+qui occupe toute la largeur par défaut. Le formulaire de saisie est
+**masqué** : un bouton « + Ajouter un événement » en haut de la liste
+l'affiche (la page se réorganise alors en deux colonnes : formulaire à
+gauche, liste à droite). Un lien « Fermer » dans le formulaire permet de
+le masquer à nouveau. Après un enregistrement, le formulaire reste
+visible pour enchaîner la saisie du même dossier. Le formulaire est
+organisé en trois groupes, calqués sur le classeur d'origine :
 
 | Groupe | Champs |
 |---|---|
@@ -157,7 +161,8 @@ Points importants :
 - **Listes déroulantes** : elles reprennent les valeurs du classeur
   (issues de l'onglet `Listes`) ; une valeur saisie autrefois
   librement dans le classeur apparaît aussi dans la liste ; elles sont
-  modifiables à tout moment (voir « Paramétrer les listes » ci-dessous) ;
+  modifiables à tout moment via le lien « Listes » dans la barre de
+  navigation en haut de page ;
 - **Enregistrement** : après un enregistrement, le formulaire se
   réinitialise mais **garde le nom de la personne** : pour saisir
   plusieurs événements concernant le même contact, on enchaîne sans
@@ -169,10 +174,14 @@ Points importants :
 
 ## Les derniers événements
 
-À droite du formulaire, le tableau « Derniers événements » affiche les
-interactions les plus récentes **en premier** : c'est le tri par défaut,
-par date d'interaction décroissante. Sur petit écran (téléphone), le
-tableau se parcourt horizontalement avec le doigt.
+Le tableau « Derniers événements » occupe toute la largeur de l'écran
+tant que le formulaire est masqué. Il affiche les interactions les plus
+récentes **en premier** : c'est le tri par défaut, par date
+d'interaction décroissante. La liste est **paginée** (10 événements
+par page) avec des liens « Précédent » / « Suivant » en dessous du
+tableau. Le tableau a une largeur minimale confortable ; si l'écran
+est trop étroit, il se parcourt horizontalement avec une barre de
+défilement.
 
 Chaque ligne propose, en première colonne à gauche :
 
@@ -180,6 +189,11 @@ Chaque ligne propose, en première colonne à gauche :
   l'événement, avec un bouton « Enregistrer la correction » ;
 - **Supprimer** : affiche d'abord un écran de confirmation (date et
   personne concernées), car la suppression est définitive.
+
+La colonne **Commentaire** est limitée en largeur (22 rem) : le texte
+long y revient à la ligne automatiquement, même les mots très longs
+(URL) sont cassés pour tenir dans la cellule ; de plus, un survol de la
+souris affiche le commentaire intégral dans une infobulle.
 
 ### Filtrer et trier
 
@@ -196,9 +210,8 @@ Chaque ligne propose, en première colonne à gauche :
 
 ## Paramétrer les listes
 
-La page « Listes » (lien dans le bandeau en haut à droite, ou « Gérer
-les listes » sous le formulaire) permet de maintenir les valeurs des
-listes déroulantes : statuts, prestations, détails, actions, canaux,
+La page « Listes » (lien « Listes » dans la barre de navigation en
+haut de page) permet de maintenir les valeurs des listes déroulantes : statuts, prestations, détails, actions, canaux,
 provenances.
 
 - **Ajouter** : la valeur apparaît immédiatement dans les listes du
@@ -229,7 +242,7 @@ décider en connaissance de cause.
 
 ## Tests associés
 
-Les tests automatisés (`tests/test_web.py`, 31 tests) couvrent :
+Les tests automatisés (`tests/test_web.py`, 43 tests) couvrent :
 l'affichage de l'écran, l'enregistrement d'un événement complet, la
 création automatique des personnes et des valeurs libres, le rejet et
 la conservation de la saisie en cas d'erreur, le pré-remplissage du nom
@@ -240,3 +253,11 @@ par date décroissante, les tris et filtres par colonne, la gestion des
 listes (ajout, renommage suivi par les événements, retrait sans perte,
 réactivation). Ils nécessitent le paquet de développement `httpx`
 (`.venv/bin/pip install -e ".[dev]"`).
+
+Les derniers tests portent sur l'affichage du commentaire dans
+la liste, la pagination et l'affichage conditionnel du formulaire :
+texte complet présent dans le HTML, infobulle `title` au survol,
+absence d'infobulle quand le commentaire est vide, règle CSS
+garantissant le retour à la ligne sans troncature, pagination à 10
+événements par page avec filtres conservés, formulaire masqué par
+défaut et affiché via le lien « Ajouter ».
