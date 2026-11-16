@@ -7,6 +7,28 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
+## 🎉 **0.0.3** *(16 novembre 2026)*
+
+### ✨ Nouveautés
+
+- **Écran de consultation des KPI** : Un nouveau tableau de bord accessible depuis le menu « KPI » 🧮
+  *Tous vos indicateurs réunis au même endroit : cartes de synthèse avec évolution mensuelle, filtres par période (année et mois), et page détaillée par indicateur avec graphiques interactifs*
+
+### 🛠️ Améliorations
+
+- **Commentaire complet dans la liste** : La colonne commentaire n'est plus tronquée 📝
+  *Le texte revient à la ligne automatiquement (mots longs compris) et une infobulle affiche le commentaire intégral au survol de la souris*
+- **Liste paginée** : Les derniers événements s'affichent par pages de 10 📄
+  *Liens « Précédent » / « Suivant » en dessous du tableau ; les filtres et le tri actifs sont conservés entre les pages*
+- **Formulaire repliable** : Le volet « Nouvel événement » est masqué par défaut 🌐
+  *Toute la largeur est consacrée à la liste ; cliquez sur « + Ajouter un événement » pour afficher le formulaire, sur « Fermer » (à côté du titre) pour le replier*
+
+### 📚 Documentation
+
+- **Guide de l'écran de saisie** : Mis à jour pour décrire la pagination, le formulaire repliable et l'infobulle de commentaire 📖
+
+---
+
 ## 🎉 **0.0.2** *(15 novembre 2026)*
 
 ### ✨ Nouveautés
@@ -101,7 +123,7 @@ En mode développement, vous verrez des versions comme :
 | 2 | Moteur de calcul KPI | ✅ Terminé | 0.0.1 |
 | 3 | Écran de saisie | ✅ Terminé | 0.0.1 |
 | 4 | Lanceur macOS + gestion des versions | ✅ Terminé | 0.0.2 |
-| 5 | Écrans de consultation + Export PDF | ⏳ En cours | 0.0.3 |
+| 5 | Écrans de consultation + Export PDF | 🚧 Consultation livrée en 0.0.3, PDF à venir | 0.0.3 |
 | 6 | Connecteur Google Analytics 4 | ⏳ À venir | 0.1.0 |
 | 7 | Indicateurs reportés (visiteurs GA, conversions) | ⏳ À venir | 0.1.0 |
 
