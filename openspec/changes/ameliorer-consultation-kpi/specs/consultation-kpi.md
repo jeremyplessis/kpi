@@ -61,3 +61,22 @@ La carte "Taux de ghosting" affiche le taux moyen en pourcentage, pas en décima
 - **WHEN** la carte Taux de ghosting est affichée
 - **THEN** la valeur est affichée sous forme de pourcentage (ex: "36,7 %")
 - **AND** le sparkline utilise la même échelle en pourcentage
+
+### Requirement: Rendu JavaScript des tableaux multi-dimensions sans erreur d'échappement
+
+Les données passées au JavaScript pour le tableau dépliable et les graphiques
+sont sérialisées avec le filtre `|tojson` de Jinja2, et non par concaténation
+manuelle de chaînes. Aucun caractère n'est échappé en entité HTML (`&#34;`)
+dans le code JavaScript généré.
+
+#### Scenario: Sélection d'un indicateur à 3 dimensions
+
+- **WHEN** l'utilisatrice sélectionne un indicateur à 3 dimensions (NbProspects, NbDemandes)
+- **THEN** le tableau dépliable affiche les données (pas d'écran vide)
+- **AND** la console JavaScript ne contient aucune erreur de syntaxe
+
+#### Scenario: Sélection d'un indicateur à 2 dimensions
+
+- **WHEN** l'utilisatrice sélectionne TauxGhosting ou RdvParCanal
+- **THEN** le tableau et le graphique s'affichent correctement
+- **AND** `dimensionNames` est un tableau JS valide

@@ -72,7 +72,7 @@
       <h3 class="carte-titre">{{ _carte.libelle }}</h3>
       <p class="carte-total">{% if _carte.pourcentage %}{{ "%.1f"|format(_carte.total * 100) }} %{% else %}{{ _carte.total|int }}{% endif %}</p>
       {% if _carte.serie|length > 1 %}
-      <canvas id="spark-{{ _carte.nom }}" class="sparkline" style="max-height: 50px;"></canvas>
+      <div style="height: 50px;"><canvas id="spark-{{ _carte.nom }}" class="sparkline"></canvas></div>
       {% else %}
       <p class="aide" style="text-align: center;">Période trop courte pour une tendance</p>
       {% endif %}
@@ -103,14 +103,6 @@
     {% if indicateur_dimensions|length >= 2 %}
     <!-- Tableau avec dépliage pour les indicateurs multi-dimensions -->
     <table id="tableau-kpi" class="tableau-depliable">
-      <thead>
-        <tr>
-          {% for _dim in indicateur_dimensions %}
-          <th scope="col">{{ _dim }}</th>
-          {% endfor %}
-          <th scope="col">Valeur</th>
-        </tr>
-      </thead>
       <tbody id="corps-tableau">
         <!-- Les données seront générées par JavaScript -->
       </tbody>
@@ -171,7 +163,7 @@
   
   {% if indicateur_selectionne == "TauxGhosting" %}
   <!-- Graphique spécifique pour le taux de ghosting (avec demandes/réponses) -->
-  <canvas id="chartGhosting" style="max-height: 400px;"></canvas>
+  <div style="height: 400px;"><canvas id="chartGhosting"></canvas></div>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const ctx = document.getElementById('chartGhosting');
@@ -232,7 +224,7 @@
   
   {% elif indicateur_dimensions|length == 1 %}
   <!-- Graphique pour indicateurs à 1 dimension (ex: par mois) -->
-  <canvas id="chartSimple" style="max-height: 400px;"></canvas>
+  <div style="height: 400px;"><canvas id="chartSimple"></canvas></div>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const ctx = document.getElementById('chartSimple');
@@ -289,7 +281,7 @@
   
   {% elif indicateur_dimensions|length == 2 %}
   <!-- Graphique pour indicateurs à 2 dimensions -->
-  <canvas id="chartGrouped" style="max-height: 400px;"></canvas>
+  <div style="height: 400px;"><canvas id="chartGrouped"></canvas></div>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const ctx = document.getElementById('chartGrouped');
@@ -298,14 +290,16 @@
       // Regrouper les données par première dimension
       const groups = {};
       {% for _ligne in lignes_indicateur %}
-      const key = "{{ _ligne.dimensions[0] }}";
-      const subKey = "{{ _ligne.dimensions[1] }}";
-      const value = {{ _ligne.valeur }};
-      
-      if (!groups[key]) {
-        groups[key] = {};
+      {
+        const key = "{{ _ligne.dimensions[0] }}";
+        const subKey = "{{ _ligne.dimensions[1] }}";
+        const value = {{ _ligne.valeur }};
+
+        if (!groups[key]) {
+          groups[key] = {};
+        }
+        groups[key][subKey] = value;
       }
-      groups[key][subKey] = value;
       {% endfor %}
       
       // Extraire les labels et datasets
@@ -355,9 +349,68 @@
     });
   </script>
   
+  {% elif indicateur_selectionne in ("NbProspects", "NbDemandes") %}
+  <!-- Courbe par année/mois (somme sur les canaux) pour les indicateurs à 3 dimensions année/mois/canal -->
+  <div style="height: 400px;"><canvas id="chartCourbe"></canvas></div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const ctx = document.getElementById('chartCourbe');
+      if (!ctx) return;
+
+      // Sommer les valeurs par couple année/mois, tous canaux confondus
+      const parMois = {};
+      {% for _ligne in lignes_indicateur %}
+      {
+        const key = "{{ _ligne.dimensions[0] }}/" + String("{{ _ligne.dimensions[1] }}").padStart(2, '0');
+        const value = {{ _ligne.valeur }};
+        parMois[key] = (parMois[key] || 0) + value;
+      }
+      {% endfor %}
+
+      const labels = Object.keys(parMois).sort();
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '{{ indicateur_libelle }}',
+            data: labels.map(label => parMois[label]),
+            backgroundColor: 'rgba(180, 89, 59, 0.2)',
+            borderColor: 'rgba(180, 89, 59, 1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.label + ': ' + context.parsed.y;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: '{{ indicateur_libelle }}' }
+            }
+          }
+        }
+      });
+    });
+  </script>
+
   {% elif indicateur_dimensions|length >= 3 %}
   <!-- Graphique pour indicateurs à 3 dimensions ou plus -->
-  <canvas id="chartStacked" style="max-height: 500px;"></canvas>
+  <div style="height: 500px;"><canvas id="chartStacked"></canvas></div>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const ctx = document.getElementById('chartStacked');
@@ -366,18 +419,20 @@
       // Regrouper par les 2 premières dimensions, sommer la troisième
       const groups = {};
       {% for _ligne in lignes_indicateur %}
-      const key1 = "{{ _ligne.dimensions[0] }}";
-      const key2 = "{{ _ligne.dimensions[1] }}";
-      const key3 = "{{ _ligne.dimensions[2] }}";
-      const value = {{ _ligne.valeur }};
-      
-      if (!groups[key1]) {
-        groups[key1] = {};
+      {
+        const key1 = "{{ _ligne.dimensions[0] }}";
+        const key2 = "{{ _ligne.dimensions[1] }}";
+        const key3 = "{{ _ligne.dimensions[2] }}";
+        const value = {{ _ligne.valeur }};
+
+        if (!groups[key1]) {
+          groups[key1] = {};
+        }
+        if (!groups[key1][key2]) {
+          groups[key1][key2] = 0;
+        }
+        groups[key1][key2] += value;
       }
-      if (!groups[key1][key2]) {
-        groups[key1][key2] = 0;
-      }
-      groups[key1][key2] += value;
       {% endfor %}
       
       // Créer datasets pour chaque valeur de la 3ème dimension
@@ -453,14 +508,14 @@
 const lignesIndicateur = [
   {% for _ligne in lignes_indicateur %}
   {
-    dimensions: ["{{ _ligne.dimensions|join('", "') }}"],
+    dimensions: {{ _ligne.dimensions|list|tojson }},
     valeur: {{ _ligne.valeur }}
   }{% if not loop.last %},{% endif %}
   {% endfor %}
 ];
 
 // Noms des dimensions
-const dimensionNames = ["{{ indicateur_dimensions|join('", "') }}"];
+const dimensionNames = {{ indicateur_dimensions|list|tojson }};
 
 // Indique si c'est un pourcentage
 const isPercentage = {{ 1 if indicateur_selectionne == "TauxGhosting" else 0 }};
@@ -530,45 +585,48 @@ function buildHierarchy(data, dimensions) {
 }
 
 // Générer le HTML pour le tableau
-function generateTableHTML(hierarchy, dimensions, depth = 0, isRoot = true) {
+function generateTableHTML(hierarchy, dimensions, depth = 0, pathPrefix = '', leafCounter = { n: 0 }) {
   let html = '';
   
   for (const [key, node] of Object.entries(hierarchy)) {
     const indent = '      ';
     const hasChildren = node.children && Object.keys(node.children).length > 0;
     const isLeaf = !hasChildren;
+    const fullKey = pathPrefix ? pathPrefix + '/' + key : String(key);
+    const toggleIcon = hasChildren ? '<span class="toggle-icon">▶</span> ' : '';
     
-    // Créer les cellules pour les dimensions
-    const cells = [];
-    for (let i = 0; i < dimensions.length; i++) {
-      if (i === depth) {
-        // Cellule pour ce niveau
-        const toggleIcon = hasChildren ? '<span class="toggle-icon">▶</span> ' : '';
-        cells.push(`<td${depth === 0 ? ' class="niveau-0"' : ''}>${toggleIcon}${key}</td>`);
-      } else if (i < depth) {
-        // Cellules vides pour les niveaux supérieurs
-        cells.push('<td></td>');
-      } else {
-        // Cellules vides pour les niveaux inférieurs (encore à venir)
-        cells.push('<td></td>');
-      }
+    // Libellé toujours dans la première colonne, indenté selon la profondeur
+    const padLeft = depth * 1.5;
+    const labelCell = `<td class="label-arbo" style="padding-left: ${padLeft}rem;${depth === 0 ? ' font-weight: 600;' : ''}">${toggleIcon}${key}</td>`;
+    
+    // Cellules vides pour les autres dimensions
+    const emptyCells = [];
+    for (let i = 1; i < dimensions.length; i++) {
+      emptyCells.push('<td></td>');
     }
     
     // Cellule de valeur
     const valueCell = `<td style="text-align: right;">${formatValue(node.total || node)}</td>`;
     
+    // Zebra striping sur les lignes finales (sans enfants)
+    const zebraClass = isLeaf ? (leafCounter.n++ % 2 === 0 ? ' feuille-pair' : ' feuille-impair') : '';
+    
     // Ligne du tableau
-    html += `${indent}<tr class="niveau-${depth}${hasChildren ? ' parent-row' : ''}" data-key="${key}" data-depth="${depth}">\n`;
-    html += `${indent}  ${cells.join('\n' + indent + '  ')}\n`;
+    html += `${indent}<tr class="niveau-${depth}${hasChildren ? ' parent-row' : ''}${zebraClass}" data-key="${fullKey}" data-depth="${depth}">\n`;
+    html += `${indent}  ${labelCell}\n`;
+    for (const c of emptyCells) html += `${indent}  ${c}\n`;
     html += `${indent}  ${valueCell}\n`;
     html += `${indent}</tr>\n`;
     
     // Générer les sous-niveaux si nécessaire
-    if (hasChildren && !isLeaf) {
-      // Créer un conteneur pour les enfants (masqué par défaut)
-      html += `${indent}<tr class="children-container" data-parent="${key}" style="display: none;">\n`;
+    if (hasChildren) {
+      // Conteneur masqué par défaut, contenu enveloppé dans un <table>
+      // pour éviter que le navigateur ne remonte les <tr> imbriqués.
+      html += `${indent}<tr class="children-container" data-parent="${fullKey}" style="display: none;">\n`;
       html += `${indent}  <td colspan="${dimensions.length + 1}">\n`;
-      html += generateTableHTML(node.children, dimensions, depth + 1, false);
+      html += `${indent}    <table style="width: 100%;">\n`;
+      html += generateTableHTML(node.children, dimensions, depth + 1, fullKey, leafCounter);
+      html += `${indent}    </table>\n`;
       html += `${indent}  </td>\n`;
       html += `${indent}</tr>\n`;
     }
@@ -586,7 +644,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const hierarchy = buildHierarchy(lignesIndicateur, dimensionNames);
   
   // Générer le HTML
-  const html = generateTableHTML(hierarchy, dimensionNames);
+  const html = generateTableHTML(hierarchy.children || {}, dimensionNames);
   tableauBody.innerHTML = html || '<tr><td colspan="' + (dimensionNames.length + 1) + '" style="text-align: center; color: var(--encre-doux);">Aucune donnée disponible</td></tr>';
   
   // Ajouter les gestionnaires de clic pour le dépliage
@@ -646,20 +704,12 @@ document.addEventListener('DOMContentLoaded', function() {
     padding: 0 !important;
   }
   
-  .tableau-depliable .niveau-0 {
-    font-weight: 600;
+  /* Zebra striping sur les lignes finales (sans enfants) */
+  .tableau-depliable tr.feuille-pair {
+    background-color: var(--fond);
   }
-  
-  .tableau-depliable .niveau-1 {
-    padding-left: 1.5rem;
-  }
-  
-  .tableau-depliable .niveau-2 {
-    padding-left: 3rem;
-  }
-  
-  .tableau-depliable .niveau-3 {
-    padding-left: 4.5rem;
+  .tableau-depliable tr.feuille-impair {
+    background-color: transparent;
   }
 </style>
 {% endif %}
