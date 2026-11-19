@@ -7,6 +7,25 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
+## 🎉 **0.0.4** *(19 novembre 2026)*
+
+### ✨ Nouveautés
+
+- **Charte graphique de Cécile Plessis Photographe** : L'application adopte l'identité visuelle officielle 🌐
+  *Palette beige/sapin, titres en serif expressif, pictogramme en favicon et logo en pied de page, graphiques KPI dans les couleurs de la marque, motif papier millimétré en arrière-plan subtil*
+
+### 🛠️ Améliorations
+
+- **Graphiques en courbe pour prospects et demandes** : Les indicateurs « Nombre de prospects » et « Nombre de demandes » s'affichent désormais en courbe 📈
+  *En abscisse les couples année/mois, en ordonnée le total tous canaux confondus — la tendance se lit d'un coup d'œil, comme pour le taux de ghosting*
+
+### 🐛 Corrections de bugs
+
+- **Visualisation graphique vide** : La section « Visualisation graphique » ne s'affichait plus pour les indicateurs à plusieurs dimensions 🐞
+  *Une erreur JavaScript (variables redéclarées dans la boucle de génération) empêchait le graphique de se dessiner ; le tableau, lui, restait correct*
+
+---
+
 ## 🎉 **0.0.3** *(16 novembre 2026)*
 
 ### ✨ Nouveautés

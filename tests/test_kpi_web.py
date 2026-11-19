@@ -100,6 +100,28 @@ class TestEcranKPI(unittest.TestCase):
         _texte = _reponse.text
         self.assertIn("2026", _texte)
 
+    def test_graphiques_couleurs_palette_charte(self):
+        """Les graphiques utilisent exclusivement la palette de la charte."""
+        _reponse = self.client.get("/kpi?indicateur=NbDemandes")
+        self.assertEqual(_reponse.status_code, 200)
+        _texte = _reponse.text
+        # Ancienne couleur terracotta absente des graphiques
+        self.assertNotIn("rgba(180, 89, 59", _texte)
+        self.assertNotIn("rgba(79, 172, 254", _texte)
+        # Série principale en vert sapin (charte)
+        self.assertIn("rgba(53, 63, 56", _texte)
+
+    def test_ghosting_couleurs_palette_charte(self):
+        """L'écran ghosting colore demandes/réponses/ghosting (charte)."""
+        _reponse = self.client.get("/kpi/TauxGhosting")
+        self.assertEqual(_reponse.status_code, 200)
+        _texte = _reponse.text
+        self.assertNotIn("rgba(231, 76, 60", _texte)
+        # Bleu (demandes), vert foncé (réponses), jaune foncé (ghosting)
+        self.assertIn("rgba(146, 175, 166", _texte)
+        self.assertIn("rgba(71, 88, 54", _texte)
+        self.assertIn("rgba(218, 185, 65", _texte)
+
     def test_kpi_nb_demandes_affiche_les_donnees(self):
         """L'indicateur NbDemandes affiche correctement les données."""
         _reponse = self.client.get("/kpi?indicateur=NbDemandes")
@@ -238,6 +260,34 @@ class TestEcranKPI(unittest.TestCase):
         # et le détail affiche aussi 3 demandes au total
         self.assertIn("[2.0, 1.0]", _reponse.text)
         self.assertIn(">3<", _reponse_detail.text)
+
+    def test_kpi_indicateur_js_sans_entites_html(self):
+        """Les blocs <script> ne contiennent pas d'entités HTML (&#34;).
+
+        Régression : join('\", \"') produisait des &#34; invalides en JS,
+        provoquant un écran vide à la sélection d'un indicateur.
+        """
+        import re
+        for _indicateur in ("NbProspects", "NbDemandes", "TauxGhosting", "RdvParCanal"):
+            _reponse = self.client.get(f"/kpi?indicateur={_indicateur}")
+            self.assertEqual(_reponse.status_code, 200)
+            _scripts = re.findall(r"<script>(.*?)</script>", _reponse.text, re.DOTALL)
+            for _script in _scripts:
+                self.assertNotIn("&#34;", _script, f"Entité HTML dans le JS de {_indicateur}")
+                self.assertNotIn("&#39;", _script, f"Entité HTML dans le JS de {_indicateur}")
+
+    def test_kpi_tableau_appel_hierarchy_children(self):
+        """Le JS du tableau dépliable appelle generateTableHTML avec hierarchy.children.
+
+        Régression : l'appel avec l'objet root directement provoquait
+        un TypeError (toFixed sur un objet) et un tbody vide.
+        """
+        _reponse = self.client.get("/kpi?indicateur=NbProspects")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn(
+            "generateTableHTML(hierarchy.children || {}, dimensionNames)",
+            _reponse.text,
+        )
 
 
 def _evenement(
