@@ -16,6 +16,7 @@ from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from kpi import __version__
@@ -114,6 +115,10 @@ class ApplicationWeb:
         self.modeles.env.filters["date_fr"] = formater_date_fr
         self.modeles.env.globals["version"] = __version__
         self.application = FastAPI(title="Suivi d'activité")
+        _dossier_statique = Path(__file__).parent / "static"
+        self.application.mount(
+            "/static", StaticFiles(directory=str(_dossier_statique)), name="static"
+        )
         self._configurer_routes()
 
     # ------------------------------------------------------------------

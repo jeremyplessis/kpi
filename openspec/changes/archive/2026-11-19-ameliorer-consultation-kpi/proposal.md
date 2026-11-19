@@ -15,6 +15,9 @@ L'écran `/kpi` actuel permet de sélectionner un indicateur et une période, ma
 - Mini-graphiques sparkline dans chaque carte (tendance mensuelle)
 - Liens vers le détail de chaque indicateur
 - Amélioration de la navigation entre le tableau de bord et les indicateurs détaillés
+- Correction du bug "écran vide" à la sélection d'un indicateur : les données
+  JavaScript étaient sérialisées avec `join()` manuel, produisant des entités
+  HTML `&#34;` invalides en JS. Remplacement par le filtre `|tojson`.
 
 ## Capabilities
 

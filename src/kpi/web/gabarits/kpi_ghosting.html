@@ -89,7 +89,7 @@
 <!-- Graphique combiné -->
 <div class="carte">
   <h2 class="section">Visualisation graphique</h2>
-  <canvas id="chartGhostingDetail" style="max-height: 400px;"></canvas>
+  <div style="height: 400px;"><canvas id="chartGhostingDetail"></canvas></div>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const ctx = document.getElementById('chartGhostingDetail');
@@ -113,8 +113,8 @@
               {% if not loop.last %}, {% endif %}
               {% endfor %}
             ],
-            backgroundColor: 'rgba(79, 172, 254, 0.7)',
-            borderColor: 'rgba(79, 172, 254, 1)',
+            backgroundColor: 'rgba(146, 175, 166, 0.7)',
+            borderColor: 'rgba(146, 175, 166, 1)',
             borderWidth: 1,
             yAxisID: 'y'
           },
@@ -126,8 +126,8 @@
               {% if not loop.last %}, {% endif %}
               {% endfor %}
             ],
-            backgroundColor: 'rgba(46, 204, 113, 0.7)',
-            borderColor: 'rgba(46, 204, 113, 1)',
+            backgroundColor: 'rgba(71, 88, 54, 0.7)',
+            borderColor: 'rgba(71, 88, 54, 1)',
             borderWidth: 1,
             yAxisID: 'y'
           },
@@ -139,8 +139,8 @@
               {% if not loop.last %}, {% endif %}
               {% endfor %}
             ],
-            backgroundColor: 'rgba(231, 76, 60, 0.2)',
-            borderColor: 'rgba(231, 76, 60, 1)',
+            backgroundColor: 'rgba(218, 185, 65, 0.25)',
+            borderColor: 'rgba(218, 185, 65, 1)',
             borderWidth: 2,
             type: 'line',
             yAxisID: 'y1'

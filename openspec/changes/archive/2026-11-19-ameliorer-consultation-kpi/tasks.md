@@ -34,3 +34,20 @@
 
 - [x] 6.1 Tous les tests existants passent encore (73 tests) — verify: `.venv/bin/python -m unittest discover -s tests`
 - [x] 6.2 Vérifier le style PEP 8 — verify: `.venv/bin/pycodestyle src/ tests/` (warnings préexistants uniquement, pas de régression)
+
+## 7. Correction du rendu JS des indicateurs (bug écran vide)
+
+- [x] 7.1 Remplacer `join('", "')` par `|tojson` dans `kpi.html` pour `lignesIndicateur` (ligne ~454) — verify: le JS généré contient `["2026","1","formulaire de contact"]` sans `&#34;`
+- [x] 7.2 Remplacer `join('", "')` par `|tojson` pour `dimensionNames` (ligne ~462) — verify: `dimensionNames` est un tableau JS valide
+- [x] 7.3 Ajouter un test de non-régression : le HTML rendu ne contient pas `&#34;` dans les blocs `<script>` — verify: `test_kpi_web.py`
+- [x] 7.4 Vérifier que tous les tests existants passent encore — verify: 88 tests OK
+- [x] 7.5 Corriger l'appel `generateTableHTML(hierarchy, ...)` → `generateTableHTML(hierarchy.children || {}, ...)` dans `kpi.html` — verify: le JS ne plante plus avec TypeError toFixed sur un objet, le tbody est peuplé
+- [x] 7.6 Ajouter un test de non-régression pour 7.5 — verify: `test_kpi_tableau_appel_hierarchy_children` dans `test_kpi_web.py`
+- [x] 7.7 Tous les tests passent — verify: 89 tests OK
+- [x] 7.8 Envelopper le contenu récursif du tableau dépliable dans un `<table>` dans le `<td>` — verify: le navigateur ne remonte plus les `<tr>` imbriqués hors du conteneur masqué, les sous-niveaux sont repliés par défaut
+- [x] 7.9 Rendre les `data-key`/`data-parent` uniques par chemin (`2025/1` au lieu de `1`) — verify: le clic sur un mois ne bascule plus les conteneurs des autres années
+- [x] 7.10 Afficher le tableau en arborescence : libellé toujours dans la première colonne avec `padding-left` proportionnel à la profondeur — verify: 2025 → 1 → canal visuellement indentés
+- [x] 7.11 Ajouter un zebra striping (`feuille-pair`/`feuille-impair`) sur les lignes finales sans enfants — verify: alternance de fond sur les feuilles
+- [x] 7.12 Supprimer les en-têtes de colonnes du tableau dépliable — verify: plus de `<thead>` dans `tableau-kpi`
+- [x] 7.13 Envelopper chaque `<canvas>` Chart.js dans un `<div style="height: Npx;">` — verify: les graphiques ont une hauteur visible (5 canvases dans kpi.html + 1 dans kpi_ghosting.html)
+- [x] 7.14 Servir Chart.js en local (`/static/chart.umd.min.js`) au lieu du CDN — verify: `GET /static/chart.umd.min.js` → 200, `base.html` ne référence plus jsdelivr
