@@ -4,37 +4,62 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titre %}Suivi d'activité{% endblock %}</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Red+Hat+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="/static/chart.umd.min.js"></script>
   <style>
     :root {
-      --encre: #2a2520;
-      --encre-doux: #6f675e;
-      --fond: #f6f3ee;
-      --carte: #ffffff;
-      --bord: #e5dfd6;
-      --accent: #b4593b;
-      --accent-fonce: #93452c;
-      --succes-fond: #edf5ec;
-      --succes-bord: #7fae7a;
-      --succes-texte: #35602f;
-      --erreur-fond: #f9ede9;
-      --erreur-bord: #d99a89;
-      --erreur-texte: #8c3418;
+      /* Palette charte graphique Cécile Plessis Photographe (nov. 2026) */
+      --jaune: #ECD981;        /* 01 jaune, nuances #F1EAC9 / #F1E3A1 / #DAB941 */
+      --bleu: #C1D3CE;         /* 02 bleu, nuances #E3E8E3 / #D1DEDB / #92AFA6 */
+      --vert-clair: #D1CF95;   /* 03 vert clair, nuances #E8E6D0 / #DDDBB2 / #ABA857 */
+      --vert: #879675;         /* 04 vert, nuances #D0D3C5 / #ABB59D / #475836 */
+      --beige: #F4F2ED;        /* 05 beige, nuances #FBFBF9 / #EAE6DC */
+      --sapin: #353F38;        /* 06 sapin, nuances #B4B6B1 / #757B74 / #0B100C */
+      --sapin-fonce: #0B100C;
+      --sapin-doux: #757B74;
+      --vert-fonce: #475836;
+      --bord-clair: #D0D3C5;
+
+      --encre: var(--sapin);
+      --encre-doux: var(--sapin-doux);
+      --fond: var(--beige);
+      --carte: #FBFBF9;
+      --bord: var(--bord-clair);
+      --accent: var(--vert-fonce);
+      --accent-fonce: var(--sapin);
+      --succes-fond: #E8E6D0;
+      --succes-bord: #ABA857;
+      --succes-texte: var(--vert-fonce);
+      --erreur-fond: #EAE6DC;
+      --erreur-bord: var(--sapin-doux);
+      --erreur-texte: var(--sapin-fonce);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      font-family: "Red Hat Display", "Segoe UI", system-ui, -apple-system, sans-serif;
       color: var(--encre);
-      background: var(--fond);
+      background-color: var(--fond);
+      /* Motif papier millimétré de la charte, en arrière-plan subtil */
+      background-image:
+        linear-gradient(rgba(135, 150, 117, .07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(135, 150, 117, .07) 1px, transparent 1px);
+      background-size: 24px 24px;
       line-height: 1.5;
     }
+    h1, h2 { font-family: "Fraunces", Georgia, "Times New Roman", serif; }
     .conteneur { max-width: 1240px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
     header.entete {
       display: flex; align-items: baseline; gap: .75rem;
       padding: .25rem 0 1.25rem; flex-wrap: wrap;
     }
     header.entete h1 { font-size: 1.35rem; margin: 0; letter-spacing: .01em; }
+    header.entete h1 .pictogramme {
+      width: 1.15em; height: 1.15em; vertical-align: -.18em; margin-right: .35rem;
+    }
     header.entete .sous-titre { color: var(--encre-doux); font-size: .9rem; }
     header.entete nav { margin-left: auto; }
     header.entete nav a {
@@ -48,7 +73,7 @@
       border-radius: 12px;
       padding: 1.5rem;
       margin-bottom: 1.5rem;
-      box-shadow: 0 1px 3px rgba(42, 37, 32, .06);
+      box-shadow: 0 1px 3px rgba(53, 63, 56, .08);
     }
     .bandeau {
       border-radius: 10px; padding: .8rem 1rem; margin-bottom: 1.25rem;
@@ -86,11 +111,11 @@
     textarea { resize: vertical; min-height: 4.5rem; }
     .actions { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
     button.primaire {
-      background: var(--accent); color: #fff; border: none;
+      background: var(--sapin); color: #FBFBF9; border: none;
       border-radius: 8px; padding: .6rem 1.4rem; font: inherit; font-weight: 600;
       cursor: pointer;
     }
-    button.primaire:hover { background: var(--accent-fonce); }
+    button.primaire:hover { background: var(--sapin-fonce); }
     a.discret { color: var(--encre-doux); font-size: .9rem; }
     h2.section { font-size: 1.05rem; margin: 0 0 .75rem; }
     .entete-formulaire {
@@ -174,14 +199,19 @@
     .pagination a { color: var(--accent); text-decoration: none; font-weight: 600; }
     .pagination a:hover { text-decoration: underline; }
     .bouton-ajouter {
-      display: inline-block; background: var(--accent); color: #fff;
+      display: inline-block; background: var(--sapin); color: #FBFBF9;
       border-radius: 8px; padding: .5rem 1.2rem; font-weight: 600;
       text-decoration: none; margin-bottom: .75rem; font-size: .95rem;
     }
-    .bouton-ajouter:hover { background: var(--accent-fonce); }
+    .bouton-ajouter:hover { background: var(--sapin-fonce); }
     @media (max-width: 1100px) {
       .disposition { grid-template-columns: 1fr; }
     }
+    .pied-de-page {
+      margin-top: 2.5rem; padding-top: 1.25rem;
+      border-top: 1px solid var(--bord); text-align: center;
+    }
+    .pied-de-page img { width: 132px; height: auto; opacity: .92; }
     @media (max-width: 640px) {
       .conteneur { padding: 1rem .75rem 2rem; }
       .carte { padding: 1rem; }
@@ -193,7 +223,7 @@
 <body>
   <div class="conteneur">
     <header class="entete">
-      <h1>Suivi d'activité{% if version %} <span style="font-size: 0.8em; color: var(--encre-doux);">(v{{ version }})</span>{% endif %}</h1>
+      <h1><img class="pictogramme" src="/static/favicon.png" alt="" aria-hidden="true">Suivi d'activité{% if version %} <span style="font-size: 0.8em; color: var(--encre-doux);">(v{{ version }})</span>{% endif %}</h1>
       <span class="sous-titre">saisie des contacts et prospects</span>
       <nav>
         <a href="/">Saisie</a>
@@ -202,6 +232,9 @@
       </nav>
     </header>
     {% block contenu %}{% endblock %}
+    <footer class="pied-de-page">
+      <img src="/static/logo-primaire.png" alt="Cécile Plessis — photographie • studio">
+    </footer>
   </div>
   {% block scripts %}{% endblock %}
 </body>

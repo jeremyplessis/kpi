@@ -683,5 +683,74 @@ class TestGestionListes(unittest.TestCase):
         self.assertEqual(_reponse.status_code, 403)
 
 
+class TestCharteGraphique(unittest.TestCase):
+    """Tests du thème conforme à la charte graphique (nov. 2026)."""
+
+    def setUp(self) -> None:
+        """Prépare une base temporaire et le client de test."""
+        self._dossier = tempfile.TemporaryDirectory()
+        self._chemin_base = Path(self._dossier.name) / "test.sqlite3"
+        _base = BaseDonnees(self._chemin_base)
+        try:
+            _base.valider()
+        finally:
+            _base.fermer()
+        self._application = ApplicationWeb(self._chemin_base)
+        self._client = TestClient(self._application.application)
+
+    def tearDown(self) -> None:
+        """Supprime le dossier temporaire."""
+        self._dossier.cleanup()
+
+    def test_palette_charte_dans_variables_css(self) -> None:
+        """Les variables CSS utilisent les couleurs de la charte officielle."""
+        _reponse = self._client.get("/")
+        self.assertEqual(_reponse.status_code, 200)
+        _codes = ("#F4F2ED", "#353F38", "#757B74",
+                  "#D0D3C5", "#FBFBF9", "#475836")
+        for _code in _codes:
+            self.assertIn(_code, _reponse.text)
+
+    def test_ancienne_palette_absente(self) -> None:
+        """L'ancien accent terracotta (#b4593b) n'apparaît plus."""
+        _reponse = self._client.get("/")
+        self.assertNotIn("#b4593b", _reponse.text)
+        self.assertNotIn("rgba(180, 89, 59", _reponse.text)
+
+    def test_favicon_pictogramme(self) -> None:
+        """Le favicon est le pictogramme de la marque, servi en local."""
+        _reponse = self._client.get("/")
+        self.assertIn('rel="icon"', _reponse.text)
+        self.assertIn("/static/favicon.png", _reponse.text)
+        _fav = self._client.get("/static/favicon.png")
+        self.assertEqual(_fav.status_code, 200)
+        self.assertEqual(_fav.headers["content-type"], "image/png")
+
+    def test_pied_de_page_logo_primaire(self) -> None:
+        """Toutes les pages affichent le logo primaire en pied de page."""
+        for _page in ("/", "/kpi", "/listes"):
+            _reponse = self._client.get(_page)
+            self.assertEqual(_reponse.status_code, 200)
+            self.assertIn('class="pied-de-page"', _reponse.text)
+            self.assertIn("/static/logo-primaire.png", _reponse.text)
+        _logo = self._client.get("/static/logo-primaire.png")
+        self.assertEqual(_logo.status_code, 200)
+
+    def test_polices_substitution_avec_replis(self) -> None:
+        """Titres en substitut Laviossa (Fraunces), texte en substitut Roundo
+        (Red Hat Display), avec replis système."""
+        _reponse = self._client.get("/")
+        self.assertIn("Fraunces", _reponse.text)
+        self.assertIn("Red Hat Display", _reponse.text)
+        self.assertIn("Georgia", _reponse.text)
+        self.assertIn("system-ui", _reponse.text)
+
+    def test_motif_papier_millimetre(self) -> None:
+        """Le fond comporte le quadrillage subtil de la charte."""
+        _reponse = self._client.get("/")
+        self.assertIn("background-image", _reponse.text)
+        self.assertIn("rgba(135, 150, 117, .07)", _reponse.text)
+
+
 if __name__ == "__main__":
     unittest.main()

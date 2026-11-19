@@ -185,8 +185,8 @@
               {% if not loop.last %}, {% endif %}
               {% endfor %}
             ],
-            backgroundColor: 'rgba(180, 89, 59, 0.2)',
-            borderColor: 'rgba(180, 89, 59, 1)',
+            backgroundColor: 'rgba(53, 63, 56, 0.15)',
+            borderColor: 'rgba(53, 63, 56, 1)',
             borderWidth: 2,
             yAxisID: 'y'
           }
@@ -249,8 +249,8 @@
               {% if not loop.last %}, {% endif %}
               {% endfor %}
             ],
-            backgroundColor: 'rgba(180, 89, 59, 0.7)',
-            borderColor: 'rgba(180, 89, 59, 1)',
+            backgroundColor: 'rgba(53, 63, 56, 0.7)',
+            borderColor: 'rgba(53, 63, 56, 1)',
             borderWidth: 1
           }]
         },
@@ -316,10 +316,10 @@
       
       function getRandomColor(seed) {
         const colors = [
-          'rgba(180, 89, 59, 0.7)', 'rgba(147, 69, 44, 0.7)', 'rgba(113, 89, 193, 0.7)',
-          'rgba(79, 172, 254, 0.7)', 'rgba(52, 152, 219, 0.7)', 'rgba(155, 89, 182, 0.7)',
-          'rgba(241, 196, 15, 0.7)', 'rgba(230, 126, 34, 0.7)', 'rgba(231, 76, 60, 0.7)',
-          'rgba(26, 188, 156, 0.7)', 'rgba(46, 204, 113, 0.7)', 'rgba(52, 73, 94, 0.7)'
+          'rgba(53, 63, 56, 0.75)', 'rgba(71, 88, 54, 0.75)', 'rgba(135, 150, 117, 0.75)',
+          'rgba(146, 175, 166, 0.75)', 'rgba(193, 211, 206, 0.75)', 'rgba(218, 185, 65, 0.75)',
+          'rgba(236, 217, 129, 0.75)', 'rgba(171, 168, 87, 0.75)', 'rgba(209, 207, 149, 0.75)',
+          'rgba(117, 123, 116, 0.75)', 'rgba(180, 182, 177, 0.75)', 'rgba(11, 16, 12, 0.75)'
         ];
         let hash = 0;
         for (let i = 0; i < seed.length; i++) {
@@ -376,8 +376,8 @@
           datasets: [{
             label: '{{ indicateur_libelle }}',
             data: labels.map(label => parMois[label]),
-            backgroundColor: 'rgba(180, 89, 59, 0.2)',
-            borderColor: 'rgba(180, 89, 59, 1)',
+            backgroundColor: 'rgba(53, 63, 56, 0.15)',
+            borderColor: 'rgba(53, 63, 56, 1)',
             borderWidth: 2,
             fill: true,
             tension: 0.3,
@@ -449,10 +449,10 @@
       
       function getRandomColor(seed) {
         const colors = [
-          'rgba(180, 89, 59, 0.7)', 'rgba(147, 69, 44, 0.7)', 'rgba(113, 89, 193, 0.7)',
-          'rgba(79, 172, 254, 0.7)', 'rgba(52, 152, 219, 0.7)', 'rgba(155, 89, 182, 0.7)',
-          'rgba(241, 196, 15, 0.7)', 'rgba(230, 126, 34, 0.7)', 'rgba(231, 76, 60, 0.7)',
-          'rgba(26, 188, 156, 0.7)', 'rgba(46, 204, 113, 0.7)', 'rgba(52, 73, 94, 0.7)'
+          'rgba(53, 63, 56, 0.75)', 'rgba(71, 88, 54, 0.75)', 'rgba(135, 150, 117, 0.75)',
+          'rgba(146, 175, 166, 0.75)', 'rgba(193, 211, 206, 0.75)', 'rgba(218, 185, 65, 0.75)',
+          'rgba(236, 217, 129, 0.75)', 'rgba(171, 168, 87, 0.75)', 'rgba(209, 207, 149, 0.75)',
+          'rgba(117, 123, 116, 0.75)', 'rgba(180, 182, 177, 0.75)', 'rgba(11, 16, 12, 0.75)'
         ];
         let hash = 0;
         for (let i = 0; i < seed.length; i++) {
@@ -726,7 +726,7 @@ document.addEventListener('DOMContentLoaded', function() {
     {% if _carte.pourcentage %}data = data.map(v => v * 100);{% endif %}
     new Chart(ctx, {
       type: 'line',
-      data: { labels: labels, datasets: [{ data: data, borderColor: 'rgba(180, 89, 59, 0.8)', backgroundColor: 'rgba(180, 89, 59, 0.1)', borderWidth: 2, fill: true, pointRadius: 2, tension: 0.3 }] },
+      data: { labels: labels, datasets: [{ data: data, borderColor: 'rgba(53, 63, 56, 0.9)', backgroundColor: 'rgba(53, 63, 56, 0.12)', borderWidth: 2, fill: true, pointRadius: 2, tension: 0.3 }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
     });
   })();
@@ -737,7 +737,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <style>
 .grille-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
 .carte-lien { text-decoration: none; color: inherit; display: block; }
-.carte-lien:hover .carte-kpi { border-color: var(--accent); box-shadow: 0 2px 8px rgba(180, 89, 59, 0.15); }
+.carte-lien:hover .carte-kpi { border-color: var(--accent); box-shadow: 0 2px 8px rgba(53, 63, 56, 0.18); }
 .carte-kpi { margin-bottom: 0; text-align: center; transition: border-color 0.15s, box-shadow 0.15s; }
 .carte-titre { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--encre-doux); margin: 0 0 0.5rem; }
 .carte-total { font-size: 2rem; font-weight: 700; color: var(--accent); margin: 0 0 0.5rem; }

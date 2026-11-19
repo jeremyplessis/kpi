@@ -100,6 +100,28 @@ class TestEcranKPI(unittest.TestCase):
         _texte = _reponse.text
         self.assertIn("2026", _texte)
 
+    def test_graphiques_couleurs_palette_charte(self):
+        """Les graphiques utilisent exclusivement la palette de la charte."""
+        _reponse = self.client.get("/kpi?indicateur=NbDemandes")
+        self.assertEqual(_reponse.status_code, 200)
+        _texte = _reponse.text
+        # Ancienne couleur terracotta absente des graphiques
+        self.assertNotIn("rgba(180, 89, 59", _texte)
+        self.assertNotIn("rgba(79, 172, 254", _texte)
+        # Série principale en vert sapin (charte)
+        self.assertIn("rgba(53, 63, 56", _texte)
+
+    def test_ghosting_couleurs_palette_charte(self):
+        """L'écran ghosting colore demandes/réponses/ghosting (charte)."""
+        _reponse = self.client.get("/kpi/TauxGhosting")
+        self.assertEqual(_reponse.status_code, 200)
+        _texte = _reponse.text
+        self.assertNotIn("rgba(231, 76, 60", _texte)
+        # Bleu (demandes), vert foncé (réponses), jaune foncé (ghosting)
+        self.assertIn("rgba(146, 175, 166", _texte)
+        self.assertIn("rgba(71, 88, 54", _texte)
+        self.assertIn("rgba(218, 185, 65", _texte)
+
     def test_kpi_nb_demandes_affiche_les_donnees(self):
         """L'indicateur NbDemandes affiche correctement les données."""
         _reponse = self.client.get("/kpi?indicateur=NbDemandes")

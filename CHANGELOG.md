@@ -9,6 +9,11 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ## 🔜 **À venir** *(Next Release)*
 
+### ✨ Nouveautés
+
+- **Charte graphique de Cécile Plessis Photographe** : L'application adopte l'identité visuelle officielle 🌐
+  *Palette beige/sapin, titres en serif expressif, pictogramme en favicon et logo en pied de page, graphiques KPI dans les couleurs de la marque, motif papier millimétré en arrière-plan subtil*
+
 ### 🛠️ Améliorations
 
 - **Graphiques en courbe pour prospects et demandes** : Les indicateurs « Nombre de prospects » et « Nombre de demandes » s'affichent désormais en courbe 📈
