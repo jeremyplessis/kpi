@@ -40,4 +40,4 @@
 - [x] 6.1 Vérification manuelle : double-clic (ou `bash KPI.command`) avec un commit en retard sur origin → le Terminal affiche la mise à jour, le script se ré-exécute et l'application démarre — verify: logs du Terminal + application ouverte sur l'écran de saisie
 - [x] 6.2 Vérification manuelle hors ligne : avertissement affiché, lancement normal — verify: pas de blocage
 - [x] 6.3 Vérification manuelle avec `pyproject.toml` touché : `pip install -e .` relancé, stamp mis à jour — verify: second lancement sans réinstallation
-- [ ] 6.4 Commit selon Conventional Commits (`feat(lanceur): ...`) et push de la branche `feat-amelioration-lanceur` — verify: branche poussée sur origin
+- [x] 6.4 Commit selon Conventional Commits (`feat(lanceur): ...`) et push de la branche `feat-amelioration-lanceur` — verify: branche poussée sur origin (fait manuellement, branche à jour sur origin au commit 56f2a91)
