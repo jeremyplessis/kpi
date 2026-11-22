@@ -7,6 +7,15 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
+## 🔜 **À venir** *(Next Release)*
+
+### 🛠️ Améliorations techniques
+
+- **Mise à jour automatique du lanceur macOS** : `KPI.command` met à jour tout seul le code et les dépendances au lancement 🍎
+  *Si le projet a évolué sur GitHub, un `git pull` est effectué automatiquement ; si `pyproject.toml` a changé, les dépendances sont réinstallées dans l'environnement virtuel. En cas de souci (hors ligne, modifications locales), un message s'affiche mais l'application se lance quand même avec le code actuel — désactivable avec `KPI_SANS_MISE_A_JOUR=1`*
+
+---
+
 ## 🎉 **0.0.4** *(19 novembre 2026)*
 
 ### ✨ Nouveautés
