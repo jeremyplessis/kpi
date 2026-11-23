@@ -100,6 +100,22 @@ def formater_date_fr(_valeur: date | None) -> str:
     return f"{_valeur.day:02d}/{_valeur.month:02d}/{_valeur.year}"
 
 
+def _periode_par_defaut(
+    _aujourdhui: date | None = None,
+) -> tuple[int, int, int, int]:
+    """Retourne (année_début, mois_début, année_fin, mois_fin) pour les
+    12 derniers mois glissants, mois en cours inclus.
+
+    :param _aujourdhui: date de référence (par défaut ``date.today()``),
+        injectable pour les tests.
+    """
+    _ref = _aujourdhui or date.today()
+    _total_mois = _ref.year * 12 + (_ref.month - 1)
+    _debut_total = _total_mois - 11
+    _a_debut, _m_debut = divmod(_debut_total, 12)
+    return _a_debut, _m_debut + 1, _ref.year, _ref.month
+
+
 class ApplicationWeb:
     """Application web locale de saisie et de consultation du suivi.
 
@@ -451,6 +467,16 @@ class ApplicationWeb:
             _annee_fin = _requete.query_params.get("annee_fin", "")
             _mois_fin = _requete.query_params.get("mois_fin", "")
             
+            # Si aucun paramètre de période : 12 derniers mois glissants
+            if not (_annee_debut or _mois_debut or _annee_fin or _mois_fin):
+                _a, _m, _af, _mf = _periode_par_defaut()
+                _annee_debut = str(_a)
+                _mois_debut = str(_m)
+                _annee_fin = str(_af)
+                _mois_fin = str(_mf)
+                # Ajouter les années par défaut aux disponibles
+                _annees = _annees | {_a, _af}
+            
             # Filtrer les événements selon la période
             _evenements_filtres = self._filtrer_par_periode(
                 _evenements, _annee_debut, _mois_debut, _annee_fin, _mois_fin
@@ -549,6 +575,15 @@ class ApplicationWeb:
             _mois_debut = _requete.query_params.get("mois_debut", "")
             _annee_fin = _requete.query_params.get("annee_fin", "")
             _mois_fin = _requete.query_params.get("mois_fin", "")
+            
+            # Si aucun paramètre de période : 12 derniers mois glissants
+            if not (_annee_debut or _mois_debut or _annee_fin or _mois_fin):
+                _a, _m, _af, _mf = _periode_par_defaut()
+                _annee_debut = str(_a)
+                _mois_debut = str(_m)
+                _annee_fin = str(_af)
+                _mois_fin = str(_mf)
+                _annees = _annees | {_a, _af}
             
             # Filtrer les événements selon la période
             _evenements_filtres = self._filtrer_par_periode(
