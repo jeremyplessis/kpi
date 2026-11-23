@@ -2,75 +2,76 @@
 
 ## Why
 
-Aujourd'hui, l'application calcule 4 indicateurs (prospects, demandes, taux de ghosting, RDV par canal) mais aucun ne mesure la **conversion** : le pourcentage de demandes qui aboutissent réellement à une séance (prestation réalisée). Cécile ne peut pas voir combien de ses demandes se concrétisent, ni si le taux diffère entre clients et prospects. Ces deux indicateurs figuraient pourtant dans le classeur Excel d'origine (documentés comme « Nombre de conversions » reportés faute de définition validée).
-
-La demande couvre 2 indicateurs :
-
-1. **Nombre de conversions** : nombre de demandes converties en séances sur la période filtrée, avec dépliement par statut du demandeur (client / prospect).
-2. **Taux de conversion** : pourcentage global de demandes converties en séances sur la période filtrée, avec dépliement en 2 composantes :
-   - **Composante clients** : demandes de clients converties / demandes de clients × 100
-   - **Composante prospects** : demandes de prospects converties / demandes de prospects × 100
+L'application calcule 4 indicateurs (prospects, demandes, taux de ghosting, RDV par canal) mais aucun ne mesure la **conversion** : le pourcentage de demandes qui aboutissent réellement à une séance (prestation réalisée). Cécile veut voir, sur la période filtrée de l'écran KPI, quel taux de ses demandes se concrétise, et si ce taux diffère entre clients et prospects.
 
 ## What Changes
 
-- **Nouveau** : classe `NbConversions` dans `src/kpi/kpi/indicateurs.py` — compte les demandes converties en séances sur la période, par statut du demandeur.
-- **Nouveau** : classe `TauxConversion` dans `src/kpi/kpi/indicateurs.py` — calcule le taux global (conversions / demandes × 100) avec dépliement clients / prospects.
+- **Nouveau** : classe `NbConversions` dans `src/kpi/kpi/indicateurs.py` — compte les conversions (Confirmations) dans la période, avec ligne « Tous » et dépliement par statut.
+- **Nouveau** : classe `TauxConversion` dans `src/kpi/kpi/indicateurs.py` — calcule le taux global (Confirmations / demandes ouvertes × 100) avec dépliement clients / prospects.
 - **Modifié** : `REGISTRE_INDICATEURS` — ajout des deux nouvelles classes.
-- **Nouveau** : tests dans `tests/test_calculs_kpi.py` pour les deux indicateurs.
-- **Modifié** : `src/kpi/web/routes.py` — ajustement du tableau de bord pour afficher le taux global en pourcentage.
+- **Nouveau** : tests dans `tests/test_calculs_kpi.py`.
+- **Modifié** : `src/kpi/web/routes.py` — les indicateurs de conversion reçoivent tous les événements (pas seulement la période filtrée) + les bornes de période, pour détecter les demandes antérieures encore ouvertes.
 - Aucun changement de schéma de base de données.
 
-## Règles métier
+## Règles métier (révisées novembre 2026)
 
-### Qu'est-ce qu'une demande ?
+### Période
 
-Une **demande** est un événement avec `action_public ∈ {"Demande", "Réservation"}`, dédoublonné par (personne, mois) conformément à la règle validée du 28/10/2026. Sur une période de plusieurs mois, une même personne peut compter plusieurs fois (une par mois où elle a fait une demande).
+La période est celle filtrée par les dates de début/fin de l'écran `/kpi`. Soit `P = [début, fin]` cette période (en année/mois).
 
-### Qu'est-ce qu'une conversion en séance ?
+### Qu'est-ce qu'une conversion ?
 
-Une **conversion en séance** est une personne qui a :
+Une **conversion** est un événement avec `action_photographe = "Confirmation"` dont la date est dans la période P. **Toute Confirmation compte**, sans vérifier qu'une demande existe.
 
-- au moins une **demande** (`action_public ∈ {"Demande", "Réservation"}`) dans la période filtrée, ET
-- au moins un événement avec `action_photographe = "Confirmation"` dans la même période filtrée.
+```
+nb_conversions = nombre d'événements Confirmation dans P
+```
 
-- La conversion est comptée **une seule fois par personne sur toute la période** (pas de dédoublonnage par mois pour les conversions : si une personne a 3 demandes sur 3 mois et une confirmation, elle compte pour 1 conversion).
-- Le **statut** (client / prospect) attribué à la conversion est celui du **premier événement de demande** de la personne dans la période.
+### Qu'est-ce qu'une demande ouverte (dénominateur) ?
+
+Une demande est un événement avec `action_public ∈ {"Demande", "Réservation"}`. Une personne peut avoir plusieurs demandes.
+
+Le dénominateur compte les **personnes ayant au moins une demande ouverte** à la fin de la période :
+
+1. **Demandes dans la période** : toute personne ayant au moins une demande dont la date est dans P est comptée (même si elle a aussi une Confirmation dans P).
+2. **Demandes antérieures encore ouvertes** : toute personne ayant au moins une demande dont la date est antérieure au début de P, ET qui n'a **aucune Confirmation à une date ≤ fin de P** (la demande n'a jamais été convertie), est comptée. Une Confirmation à n'importe quelle date antérieure ou égale à la fin de la période ferme la demande.
+
+```
+demandeurs = {personnes avec demande dans P}
+           ∪ {personnes avec demande avant P et sans Confirmation dans P}
+```
 
 ### Qu'est-ce que le taux de conversion ?
 
-Le taux de conversion se calcule **sur la période filtrée par les dates de l'écran KPI** :
-
 ```
-taux_global = (nb_personnes_converties) / (nb_personnes_avec_demande) × 100
+taux_global = nb_conversions / len(demandeurs) × 100
 ```
 
-- Le dénominateur est le nombre de **personnes distinctes** ayant fait au moins une demande dans la période (pas le nombre d'événements de demande, pour éviter qu'une personne avec 5 demandes le même mois ne pèse 5 fois — même si le dédoublonnage par mois s'applique, sur plusieurs mois une personne peut apparaître plusieurs fois ; ici on compte la personne une seule fois sur toute la période).
-- Le numérateur est le nombre de **personnes distinctes** parmi ces demandeurs qui ont aussi une `Confirmation` dans la période.
-- Si aucune personne n'a fait de demande dans la période, le taux est `None` (pas de division par zéro) — affiche « — ».
+- Si `demandeurs` est vide, le taux est 0 (pas de division par zéro).
+- Le taux est borné entre 0 et 100 %.
 
 ### Décomposition en composantes
 
-En dépliant le résultat, on affiche 2 composantes :
+En dépliant le résultat, deux composantes :
 
 ```
-taux_clients    = (clients convertis)    / (clients avec demande)    × 100
-taux_prospects  = (prospects convertis)  / (prospects avec demande)  × 100
+taux_clients   = conversions_clients / demandeurs_clients × 100
+taux_prospects = conversions_prospects / demandeurs_prospects × 100
 ```
 
-- Le statut (client/prospect) est celui porté par le **premier événement de demande** de la personne dans la période.
-- Si une composante a 0 demande, son taux est `None` (« — »).
+- Le **statut** (client/prospect) d'une personne est celui de sa **première demande** (chronologiquement, avant ou dans P). Un `statut_contact` vide (None) vaut **« prospect »** (règle validée : une demande sans statut est un prospect).
+- `conversions_S` = nombre de Confirmations dans P pour des personnes de statut S.
+- `demandeurs_S` = nombre de demandeurs de statut S (selon la règle ci-dessus).
+- Si `demandeurs_S` = 0, la composante n'apparaît pas.
 
 ## Hors périmètre
 
-- Pas de suivi de cohorte (une confirmation peut venir d'une demande du mois précédent hors période).
-- Pas de calcul de valeur moyenne du contrat (CA) — un indicateur séparé.
+- Pas de calcul de CA.
 - Pas de modification du schéma SQLite.
-- Pas de connecteur GA4 (les « conversions » GA sont un indicateur séparé, étape 6).
-- Pas de détail par canal d'acquisition (remplacé par le détail par statut client/prospect).
+- Pas de connecteur GA4.
 
 ## Hypothèses enregistrées
 
-- Une « Confirmation » (`action_photographe = "Confirmation"`) matérialise la réalisation d'une séance pour une personne.
-- La période de calcul est celle filtrée par les dates de début/fin de l'écran `/kpi`.
-- Une personne est comptée une fois dans le dénominateur (demandes) et une fois dans le numérateur (conversions), même si elle a plusieurs demandes ou plusieurs confirmations sur la période.
-- Le statut retenu est celui du premier événement de demande de la personne dans la période.
+- Une demande peut courir sur plusieurs mois avant sa conversion : une demande de janvier peut être confirmée en mars.
+- Une Confirmation dans la période ferme les demandes antérieures de la même personne (elles ne sont plus comptées comme ouvertes).
+- Le statut retenu est celui de la première demande de la personne (chronologiquement).

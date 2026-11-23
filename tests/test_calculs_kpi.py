@@ -14,9 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kpi.kpi.indicateurs import (  # noqa: E402 - chemin ajusté pour les tests
+    NbConversions,
     NbDemandes,
     NbProspects,
     RdvParCanal,
+    TauxConversion,
     TauxGhosting,
 )
 from kpi.suivi import EvenementSuivi  # noqa: E402 - chemin ajusté pour les tests
@@ -250,6 +252,197 @@ class TestRdvParCanal(unittest.TestCase):
             _obtenu,
             [((2025, "mail"), 1), ((2025, "téléphone"), 1)],
         )
+
+
+class TestNbConversions(unittest.TestCase):
+    """Tests de l'indicateur « Nombre de conversions »."""
+
+    #: Jeu de données dédié pour les conversions.
+    #: Période testée P = mars 2025 ((2025, 3), (2025, 3)).
+    #: - Alice : demande janv (avant P), pas de Confirmation → demande ouverte
+    #: - Bob : demande janv (avant P), Confirmation fév (avant P) → demande FERMÉE
+    #:   (la Confirmation n'est pas dans P mais avant fin P, donc la demande est fermée)
+    #: - Chloé : demande mars (dans P), Confirmation mars → demande ouverte + conversion
+    #: - Dave : demande fév (avant P), pas de Confirmation → demande ouverte
+    #: - Émilie : demande mars (dans P), pas de Confirmation → demande ouverte
+    #: - Franck : pas de demande, Confirmation mars → conversion seule (statut (vide), exclue du dépliement)
+    _TOUS = [
+        EvenementSuivi(
+            date=date(2025, 1, 10), personne="Alice",
+            statut_contact="prospect", action_public="Demande", canal="mail",
+        ),
+        EvenementSuivi(
+            date=date(2025, 1, 10), personne="Bob",
+            statut_contact="prospect", action_public="Demande", canal="mail",
+        ),
+        EvenementSuivi(
+            date=date(2025, 2, 1), personne="Bob",
+            action_photographe="Confirmation",  # avant P, mais ≤ fin P → ferme la demande
+        ),
+        EvenementSuivi(
+            date=date(2025, 2, 5), personne="Dave",
+            statut_contact="prospect", action_public="Demande", canal="tel",
+        ),
+        EvenementSuivi(
+            date=date(2025, 3, 1), personne="Chloé",
+            statut_contact="client", action_public="Demande", canal="mail",
+        ),
+        EvenementSuivi(
+            date=date(2025, 3, 2), personne="Émilie",
+            statut_contact="prospect", action_public="Demande", canal="site",
+        ),
+        # Confirmations dans P (mars)
+        EvenementSuivi(
+            date=date(2025, 3, 10), personne="Bob",
+            action_photographe="Confirmation",
+        ),
+        EvenementSuivi(
+            date=date(2025, 3, 12), personne="Chloé",
+            action_photographe="Confirmation",
+        ),
+        EvenementSuivi(
+            date=date(2025, 3, 20), personne="Franck",
+            action_photographe="Confirmation",
+        ),
+    ]
+    _DEBUT = (2025, 3)
+    _FIN = (2025, 3)
+
+    def test_ligne_tous(self) -> None:
+        """3 Confirmations dans P (Bob, Chloé, Franck)."""
+        _lignes = NbConversions().calculer_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
+        self.assertEqual(int(_tous.valeur), 3)
+
+    def test_depliement_par_statut(self) -> None:
+        """client=1 (Chloé), prospect=2 (Bob + Franck sans demande → prospect par défaut)."""
+        _lignes = NbConversions().calculer_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        _par_statut = {_l.dimensions[0]: int(_l.valeur) for _l in _lignes}
+        self.assertEqual(_par_statut.get("client"), 1)
+        self.assertEqual(_par_statut.get("prospect"), 2)
+
+    def test_confirmation_hors_periode_ignoree(self) -> None:
+        """Une Confirmation en avril n'est pas comptée pour P=mars."""
+        _ev = self._TOUS + [
+            EvenementSuivi(
+                date=date(2025, 4, 1), personne="Alice",
+                action_photographe="Confirmation",
+            )
+        ]
+        _lignes = NbConversions().calculer_periode(_ev, self._DEBUT, self._FIN)
+        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
+        self.assertEqual(int(_tous.valeur), 3)  # pas 4
+
+
+class TestTauxConversion(unittest.TestCase):
+    """Tests de l'indicateur « Taux de conversion »."""
+
+    _TOUS = TestNbConversions._TOUS
+    _DEBUT = TestNbConversions._DEBUT
+    _FIN = TestNbConversions._FIN
+
+    def test_taux_global(self) -> None:
+        """Demandeurs ouverts = Alice, Chloé, Dave, Émilie = 4 (Bob fermée par Confirmation fév).
+        3 Confirmations dans P → 75 %."""
+        _lignes = TauxConversion().calculer_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
+        self.assertAlmostEqual(_tous.valeur, 75.0)
+
+    def test_demande_avant_periode_sans_confirmation_ouverte(self) -> None:
+        """Alice (demande janv, aucune Confirmation) est comptée comme ouverte."""
+        _lignes = TauxConversion().calculer_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
+        # 4 demandeurs (Alice, Chloé, Dave, Émilie) → taux 3/4 = 75%
+        self.assertAlmostEqual(_tous.valeur, 75.0)
+
+    def test_demande_avant_periode_confirmation_avant_fin_fermee(self) -> None:
+        """Bob (demande janv, Confirmation fév ≤ fin P) : demande FERMÉE, pas dans les demandeurs."""
+        # Si Bob était compté : 5 demandeurs, taux = 3/5 = 60%. On doit avoir 75%.
+        _lignes = TauxConversion().calculer_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
+        self.assertAlmostEqual(_tous.valeur, 75.0)
+
+    def test_composante_clients(self) -> None:
+        """1 client demandeur (Chloé), 1 Confirmation client → 100 %."""
+        _lignes = TauxConversion().calculer_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        _client = [_l for _l in _lignes if _l.dimensions == ("client",)][0]
+        self.assertAlmostEqual(_client.valeur, 100.0)
+
+    def test_composante_prospects(self) -> None:
+        """3 prospects demandeurs (Alice, Dave, Émilie), 2 Confirmations prospect
+        (Bob + Franck sans demande → prospect par défaut) → 66,7 %."""
+        _lignes = TauxConversion().calculer_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        _prospect = [_l for _l in _lignes if _l.dimensions == ("prospect",)][0]
+        self.assertAlmostEqual(_prospect.valeur, 2 / 3 * 100.0)
+
+    def test_statut_vide_devient_prospect(self) -> None:
+        """Une Demande avec statut=None est classée 'prospect' (pas '(vide)')."""
+        _ev = self._TOUS + [
+            EvenementSuivi(
+                date=date(2025, 3, 5), personne="TestVide",
+                statut_contact=None, action_public="Demande",
+            ),
+            EvenementSuivi(
+                date=date(2025, 3, 10), personne="TestVide",
+                action_photographe="Confirmation",
+            ),
+        ]
+        _lignes = NbConversions().calculer_periode(_ev, self._DEBUT, self._FIN)
+        _statuts = {_l.dimensions[0] for _l in _lignes}
+        self.assertIn("prospect", _statuts)
+        self.assertNotIn("(vide)", _statuts)
+
+    def test_aucune_demande_ouverte(self) -> None:
+        """Période sans aucune demande → taux 0 %."""
+        _lignes = TauxConversion().calculer_periode(
+            self._TOUS, (2026, 1), (2026, 1)
+        )
+        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
+        self.assertEqual(_tous.valeur, 0.0)
+
+    def test_taux_borne_0_100(self) -> None:
+        """Le taux est toujours entre 0 et 100 %."""
+        _lignes = TauxConversion().calculer_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        for _l in _lignes:
+            self.assertGreaterEqual(_l.valeur, 0.0)
+            self.assertLessEqual(_l.valeur, 100.0)
+
+    def test_statut_premiere_demande(self) -> None:
+        """Le statut retenu est celui de la première demande chronologique."""
+        _ev = [
+            EvenementSuivi(
+                date=date(2025, 1, 1), personne="Test",
+                statut_contact="prospect", action_public="Demande",
+            ),
+            EvenementSuivi(
+                date=date(2025, 3, 15), personne="Test",
+                statut_contact="client", action_public="Demande",
+            ),
+            EvenementSuivi(
+                date=date(2025, 3, 20), personne="Test",
+                action_photographe="Confirmation",
+            ),
+        ]
+        _lignes = NbConversions().calculer_periode(_ev, (2025, 3), (2025, 3))
+        _par_statut = {_l.dimensions[0]: int(_l.valeur) for _l in _lignes}
+        self.assertEqual(_par_statut.get("prospect"), 1)
+        self.assertNotIn("client", _par_statut)
 
 
 if __name__ == "__main__":

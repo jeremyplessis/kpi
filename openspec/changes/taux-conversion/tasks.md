@@ -1,36 +1,33 @@
 # Tasks: Indicateurs de conversion (nombre et taux)
 
-## 1. Moteur de calcul — fonction utilitaire demandes/conversions
+## 1. Moteur de calcul — demandes ouvertes et confirmations
 
-- [ ] 1.1 Ajouter `_detecter_demandes_et_conversions(_evenements) -> tuple[set[str], dict[str, str], set[str]]` dans `src/kpi/kpi/indicateurs.py` — retourne (personnes_avec_demande, statut_par_personne, personnes_converties) — verify: `python -m unittest tests.test_calculs_kpi` passe
-- [ ] 1.2 La fonction identifie les demandes (`action_public ∈ {"Demande", "Réservation"}`) et les confirmations (`action_photographe == "Confirmation"`), une personne = 1 demandeur et 1 conversion max sur la période
+- [x] 1.1 Ajouter `_calculer_demandeurs_ouverts()` et `_compter_confirmations_dans_periode()` dans `src/kpi/kpi/indicateurs.py` — demandeurs = demandes dans P ∪ (demandes avant P sans Confirmation dans P) — verify: tests passent
+- [x] 1.2 Ajouter `_dans_periode()` et `_avant_periode()` pour comparer (année, mois)
 
 ## 2. Moteur de calcul — classe NbConversions
 
-- [ ] 2.1 Créer `NbConversions(Indicateur)` avec `libelle = "Nombre de conversions"`, `dimensions = ("statut",)` — verify: import OK
-- [ ] 2.2 Implémenter `calculer()` : retourner les lignes `("Tous", total)`, `("client", nb)`, `("prospect", nb)` — verify: retourne des `LigneIndicateur`
-- [ ] 2.3 Ajouter `NbConversions` à `REGISTRE_INDICATEURS` — verify: apparaît dans la liste de `/kpi`
+- [x] 2.1 Créer `NbConversions(Indicateur)` avec `calculer_periode()` — compte les Confirmations dans P par statut — verify: import OK
+- [x] 2.2 Ajouter `NbConversions` à `REGISTRE_INDICATEURS`
 
 ## 3. Moteur de calcul — classe TauxConversion
 
-- [ ] 3.1 Créer `TauxConversion(Indicateur)` avec `libelle = "Taux de conversion"`, `dimensions = ("statut",)` — verify: import OK
-- [ ] 3.2 Implémenter `calculer()` : taux global + composantes client/prospect en pourcentage (0-100), `None` si division par zéro — verify: pas de division par zéro
-- [ ] 3.3 Ajouter `TauxConversion` à `REGISTRE_INDICATEURS` — verify: apparaît dans la liste de `/kpi`
+- [x] 3.1 Créer `TauxConversion(Indicateur)` avec `calculer_periode()` — taux = Confirmations / demandeurs ouverts × 100 — verify: tests passent
+- [x] 3.2 Ajouter `TauxConversion` à `REGISTRE_INDICATEURS`
 
 ## 4. Tests unitaires
 
-- [ ] 4.1 Ajouter `TestNbConversions` dans `tests/test_calculs_kpi.py` : demande+confirmation = conversion, demande seule ≠ conversion, confirmation seule ≠ conversion, plusieurs demandes = 1 conversion, dépliement par statut — verify: `python -m unittest tests.test_calculs_kpi.TestNbConversions` passe
-- [ ] 4.2 Ajouter `TestTauxConversion` dans `tests/test_calculs_kpi.py` : taux global, composantes client/prospect, 0 demande → None, statut sans demande → None, taux borné 0-100 — verify: `python -m unittest tests.test_calculs_kpi.TestTauxConversion` passe
-- [ ] 4.3 Vérifier l'absence de régression — verify: `python -m unittest discover -s tests` sans régression
+- [x] 4.1 `TestNbConversions` : 3 tests (total, par statut, hors période)
+- [x] 4.2 `TestTauxConversion` : 7 tests (global, demande avant P ouverte/fermée, composantes, 0 demande, bornes, statut 1ère demande)
+- [x] 4.3 `python -m unittest discover -s tests` — 116 tests OK
 
-## 5. Intégration web — tableau de bord et page indicateur
+## 5. Intégration web
 
-- [ ] 5.1 Modifier `_construire_tableau_de_bord` dans `src/kpi/web/routes.py` pour que `TauxConversion` affiche le taux global (ligne « Tous ») en % — verify: carte cohérente
-- [ ] 5.2 Vérifier que le tableau dépliable de `/kpi` gère une dimension `("statut",)` avec dépliement « Tous » → client/prospect — verify: le clic déplie correctement
-- [ ] 5.3 Adapter le graphique Chart.js pour 1 dimension avec 3 barres (Tous, Clients, Prospects) — verify: rendu correct
+- [x] 5.1 `page_kpi` : détecter `calculer_periode` et passer tous les événements + bornes
+- [x] 5.2 `_construire_tableau_de_bord` : idem, reçoit tous les événements
+- [x] 5.3 Template `kpi.html` : affichage % pour TauxConversion (déjà fait)
 
-## 6. Vérification manuelle et style
+## 6. Vérification
 
-- [ ] 6.1 Lancer l'application et vérifier `/kpi` : 6 cartes, tableau dépliable pour les 2 nouveaux indicateurs, graphique 3 barres — verify: rendu correct dans le navigateur
-- [ ] 6.2 `pycodestyle src/ tests/` sans erreur — verify: style PEP 8 respecté
-- [ ] 6.3 `python -m unittest discover -s tests` — tous les tests passent
+- [x] 6.1 Tous les tests passent (116)
+- [x] 6.2 `pycodestyle` — pas de nouvelle violation

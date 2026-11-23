@@ -219,10 +219,201 @@ class RdvParCanal(Indicateur):
         return _lignes_resultat
 
 
+def _borne_annee_mois(
+    _evenement: EvenementSuivi,
+) -> tuple[int, int]:
+    """Retourne le couple (année, mois) d'un événement."""
+    return (_evenement.annee, _evenement.mois)
+
+
+def _dans_periode(
+    _ev: EvenementSuivi,
+    _debut: tuple[int, int] | None,
+    _fin: tuple[int, int] | None,
+) -> bool:
+    """Vrai si l'événement est dans [début, fin] (bornes en (année, mois))."""
+    _cle = _borne_annee_mois(_ev)
+    if _debut is not None and _cle < _debut:
+        return False
+    if _fin is not None and _cle > _fin:
+        return False
+    return True
+
+
+def _avant_periode(
+    _ev: EvenementSuivi,
+    _debut: tuple[int, int] | None,
+) -> bool:
+    """Vrai si l'événement est strictement avant le début de période."""
+    if _debut is None:
+        return False
+    return _borne_annee_mois(_ev) < _debut
+
+
+def _calculer_demandeurs_ouverts(
+    _tous_evenements: Sequence[EvenementSuivi],
+    _debut: tuple[int, int] | None,
+    _fin: tuple[int, int] | None,
+) -> tuple[set[str], dict[str, str]]:
+    """Retourne (demandeurs_ouverts, statut_par_personne).
+
+    - ``demandeurs_ouverts`` : personnes ayant au moins une demande dans la
+      période, OU une demande avant la période sans aucune Confirmation
+      à une date ≤ fin de période (la demande n'a jamais été convertie).
+    - ``statut_par_personne`` : statut de la première demande de chaque
+      personne (chronologiquement). Un statut vide (None) vaut « prospect ».
+    """
+    _premiere_demande: dict[str, tuple[tuple[int, int], str]] = {}
+    _demande_dans_periode: set[str] = set()
+    _demande_avant: set[str] = set()
+    # Confirmations à toute date ≤ fin de période (ferment la demande).
+    _confirmation_avant_fin: set[str] = set()
+    for _ev in _tous_evenements:
+        if _ev.action_public in ACTIONS_DEMANDE:
+            _cle = _borne_annee_mois(_ev)
+            if _ev.personne not in _premiere_demande:
+                _premiere_demande[_ev.personne] = (
+                    _cle,
+                    _ev.statut_contact or "prospect",
+                )
+            if _dans_periode(_ev, _debut, _fin):
+                _demande_dans_periode.add(_ev.personne)
+            elif _avant_periode(_ev, _debut):
+                _demande_avant.add(_ev.personne)
+        if _ev.action_photographe == "Confirmation":
+            _cle = _borne_annee_mois(_ev)
+            if _fin is None or _cle <= _fin:
+                _confirmation_avant_fin.add(_ev.personne)
+    _demandeurs = _demande_dans_periode | (
+        _demande_avant - _confirmation_avant_fin
+    )
+    _statut = {
+        _p: _s for _p, (_, _s) in _premiere_demande.items()
+    }
+    return _demandeurs, _statut
+
+
+def _compter_confirmations_dans_periode(
+    _tous_evenements: Sequence[EvenementSuivi],
+    _debut: tuple[int, int] | None,
+    _fin: tuple[int, int] | None,
+) -> dict[str, int]:
+    """Compte les Confirmations dans la période, par personne."""
+    _par_personne: dict[str, int] = defaultdict(int)
+    for _ev in _tous_evenements:
+        if (
+            _ev.action_photographe == "Confirmation"
+            and _dans_periode(_ev, _debut, _fin)
+        ):
+            _par_personne[_ev.personne] += 1
+    return dict(_par_personne)
+
+
+class NbConversions(Indicateur):
+    """Nombre de conversions (Confirmations) dans la période, par statut."""
+
+    libelle: ClassVar[str] = "Nombre de conversions"
+    description: ClassVar[str] = (
+        "Événements « Confirmation » du photographe dans la période, "
+        "regroupés par statut de la personne (Tous, client, prospect)."
+    )
+    dimensions: ClassVar[tuple[str, ...]] = ("statut",)
+
+    def calculer(self, _evenements: Sequence[EvenementSuivi]) -> list[LigneIndicateur]:
+        """Compatibilité : période = toutes les données."""
+        return self.calculer_periode(_evenements, None, None)
+
+    def calculer_periode(
+        self,
+        _tous_evenements: Sequence[EvenementSuivi],
+        _debut: tuple[int, int] | None,
+        _fin: tuple[int, int] | None,
+    ) -> list[LigneIndicateur]:
+        """Compte les Confirmations dans [début, fin] par statut."""
+        _confirmations = _compter_confirmations_dans_periode(
+            _tous_evenements, _debut, _fin
+        )
+        _, _statut = _calculer_demandeurs_ouverts(
+            _tous_evenements, _debut, _fin
+        )
+        _par_statut: dict[str, int] = defaultdict(int)
+        for _personne, _nb in _confirmations.items():
+            _s = _statut.get(_personne, "prospect")
+            _par_statut[_s] += _nb
+        _total = sum(_confirmations.values())
+        _lignes = [
+            LigneIndicateur(dimensions=("Tous",), valeur=float(_total)),
+        ]
+        for _statut_nom in sorted(_par_statut):
+            _lignes.append(
+                LigneIndicateur(
+                    dimensions=(_statut_nom,),
+                    valeur=float(_par_statut[_statut_nom]),
+                )
+            )
+        return _lignes
+
+
+class TauxConversion(Indicateur):
+    """Taux de conversion : Confirmations / demandes ouvertes × 100."""
+
+    libelle: ClassVar[str] = "Taux de conversion"
+    description: ClassVar[str] = (
+        "Pourcentage de demandes ouvertes converties (Confirmation) "
+        "dans la période, global et décomposé clients / prospects."
+    )
+    dimensions: ClassVar[tuple[str, ...]] = ("statut",)
+
+    def calculer(self, _evenements: Sequence[EvenementSuivi]) -> list[LigneIndicateur]:
+        """Compatibilité : période = toutes les données."""
+        return self.calculer_periode(_evenements, None, None)
+
+    def calculer_periode(
+        self,
+        _tous_evenements: Sequence[EvenementSuivi],
+        _debut: tuple[int, int] | None,
+        _fin: tuple[int, int] | None,
+    ) -> list[LigneIndicateur]:
+        """Calcule le taux global (%) et les composantes par statut."""
+        _demandeurs, _statut = _calculer_demandeurs_ouverts(
+            _tous_evenements, _debut, _fin
+        )
+        _confirmations = _compter_confirmations_dans_periode(
+            _tous_evenements, _debut, _fin
+        )
+        _nb_demandeurs = len(_demandeurs)
+        _nb_confirmations = sum(_confirmations.values())
+        _taux_global = (
+            (_nb_confirmations / _nb_demandeurs * 100.0)
+            if _nb_demandeurs > 0
+            else 0.0
+        )
+        # Par statut
+        _demandeurs_par_statut: dict[str, int] = defaultdict(int)
+        _confirmations_par_statut: dict[str, int] = defaultdict(int)
+        for _p in _demandeurs:
+            _demandeurs_par_statut[_statut.get(_p, "prospect")] += 1
+        for _p, _nb in _confirmations.items():
+            _confirmations_par_statut[_statut.get(_p, "prospect")] += _nb
+        _lignes = [
+            LigneIndicateur(dimensions=("Tous",), valeur=_taux_global),
+        ]
+        for _s in sorted(_demandeurs_par_statut):
+            _nb_d = _demandeurs_par_statut[_s]
+            _nb_c = _confirmations_par_statut.get(_s, 0)
+            _taux = (_nb_c / _nb_d * 100.0) if _nb_d > 0 else 0.0
+            _lignes.append(
+                LigneIndicateur(dimensions=(_s,), valeur=_taux)
+            )
+        return _lignes
+
+
 #: Registre des indicateurs disponibles : l'ajout d'un KPI se fait ici.
 REGISTRE_INDICATEURS: list[type[Indicateur]] = [
     NbProspects,
     NbDemandes,
     TauxGhosting,
     RdvParCanal,
+    NbConversions,
+    TauxConversion,
 ]

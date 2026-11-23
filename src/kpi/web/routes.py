@@ -468,7 +468,22 @@ class ApplicationWeb:
                     if _indic_classe.__name__ == _indicateur_nom:
                         _indicateur_classe = _indic_classe
                         _indicateur = _indic_classe()
-                        _lignes_indicateur = _indicateur.calculer(_evenements_filtres)
+                        # Les indicateurs avec calculer_periode ont besoin
+                        # de tous les événements + les bornes de la période.
+                        if hasattr(_indicateur, "calculer_periode"):
+                            _a_d = int(_annee_debut) if _annee_debut else None
+                            _m_d = int(_mois_debut) if _mois_debut else None
+                            _a_f = int(_annee_fin) if _annee_fin else None
+                            _m_f = int(_mois_fin) if _mois_fin else None
+                            _debut = (_a_d, _m_d) if _a_d else None
+                            _fin = (_a_f, _m_f) if _a_f else None
+                            _lignes_indicateur = _indicateur.calculer_periode(
+                                _evenements, _debut, _fin
+                            )
+                        else:
+                            _lignes_indicateur = _indicateur.calculer(
+                                _evenements_filtres
+                            )
                         _indicateur_libelle = _indic_classe.libelle
                         _indicateur_description = _indic_classe.description
                         _indicateur_dimensions = list(_indic_classe.dimensions)
@@ -479,7 +494,7 @@ class ApplicationWeb:
             _tableau_de_bord = []
             if not _indicateur_nom:
                 _tableau_de_bord = self._construire_tableau_de_bord(
-                    _evenements_filtres,
+                    _evenements,
                     _annee_debut, _mois_debut, _annee_fin, _mois_fin,
                 )
             
@@ -621,7 +636,7 @@ class ApplicationWeb:
 
     def _construire_tableau_de_bord(
         self,
-        _evenements: list[EvenementSuivi],
+        _tous_evenements: list[EvenementSuivi],
         _annee_debut: str,
         _mois_debut: str,
         _annee_fin: str,
@@ -632,6 +647,9 @@ class ApplicationWeb:
         Pour chaque indicateur du registre, calcule le total sur la
         période filtrée et la série mensuelle pour le sparkline.
 
+        :param _tous_evenements: tous les événements (pas filtrés), pour
+            permettre aux indicateurs de conversion de voir les demandes
+            antérieures.
         :returns: liste de dicts avec nom, libelle, total, pourcentage,
             serie (liste de [label, valeur]) et lien vers le détail.
         """
@@ -646,13 +664,35 @@ class ApplicationWeb:
             }.items()
             if _v
         }
+        # Bornes de période pour les indicateurs avec calculer_periode
+        _a_d = int(_annee_debut) if _annee_debut else None
+        _m_d = int(_mois_debut) if _mois_debut else None
+        _a_f = int(_annee_fin) if _annee_fin else None
+        _m_f = int(_mois_fin) if _mois_fin else None
+        _debut = (_a_d, _m_d) if _a_d else None
+        _fin = (_a_f, _m_f) if _a_f else None
+        # Événements filtrés pour les indicateurs classiques
+        _evenements_filtres = self._filtrer_par_periode(
+            _tous_evenements, _annee_debut, _mois_debut, _annee_fin, _mois_fin
+        )
         for _classe in REGISTRE_INDICATEURS:
             _indicateur = _classe()
-            _lignes = _indicateur.calculer(_evenements)
-            _est_pourcentage = _classe.__name__ == "TauxGhosting"
-            # Pour un pourcentage, le total est la moyenne des valeurs
-            # mensuelles (pas la somme) ; pour un comptage, c'est la somme.
-            if _est_pourcentage and _lignes:
+            if hasattr(_indicateur, "calculer_periode"):
+                _lignes = _indicateur.calculer_periode(
+                    _tous_evenements, _debut, _fin
+                )
+            else:
+                _lignes = _indicateur.calculer(_evenements_filtres)
+            _est_pourcentage = _classe.__name__ in ("TauxGhosting", "TauxConversion")
+            # Ligne « Tous » prioritaire pour les indicateurs agrégés (conversions).
+            _ligne_tous = next(
+                (_ligne for _ligne in _lignes if _ligne.dimensions == ("Tous",)),
+                None,
+            )
+            if _ligne_tous is not None:
+                _total = _ligne_tous.valeur
+            elif _est_pourcentage and _lignes:
+                # Pour un pourcentage sans ligne « Tous », moyenne des valeurs.
                 _total = sum(_ligne.valeur for _ligne in _lignes) / len(_lignes)
             else:
                 _total = sum(_ligne.valeur for _ligne in _lignes)
@@ -662,13 +702,15 @@ class ApplicationWeb:
             _serie: list[tuple[str, float]] = []
             _par_cle: dict[tuple, float] = {}
             for _ligne in _lignes:
+                if _ligne.dimensions == ("Tous",):
+                    continue
                 _cle = tuple(_ligne.dimensions[:2])
                 _par_cle[_cle] = _par_cle.get(_cle, 0.0) + _ligne.valeur
             for _cle in sorted(_par_cle):
-                if isinstance(_cle[1], int):
+                if len(_cle) >= 2 and isinstance(_cle[1], int):
                     _label = f"{_cle[0]}-{_cle[1]:02d}"
                 else:
-                    _label = f"{_cle[0]} {_cle[1]}"
+                    _label = " ".join(str(_v) for _v in _cle)
                 _serie.append((_label, _par_cle[_cle]))
             
             # Lien vers le détail avec filtres conservés
@@ -681,6 +723,9 @@ class ApplicationWeb:
                 "libelle": _classe.libelle,
                 "total": _total,
                 "pourcentage": _est_pourcentage,
+                # TauxGhosting est un ratio 0-1 (×100 pour l'affichage) ;
+                # TauxConversion est déjà en pourcentage 0-100.
+                "ratio": _classe.__name__ == "TauxGhosting",
                 "serie": _serie,
                 "lien": _lien,
             })
