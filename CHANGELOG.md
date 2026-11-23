@@ -7,6 +7,23 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
+## 🎉 **0.0.6** *(24 novembre 2026)*
+
+### ✨ Nouveautés
+
+- **Indicateurs de conversion** : Deux nouveaux indicateurs sur l'écran KPI mesurent la conversion des demandes en séances 🧮
+  *« Nombre de conversions » compte les confirmations du photographe ; « Taux de conversion » affiche le pourcentage de demandes ouvertes converties, avec détail par statut (client/prospect) et par canal (mail, téléphone, formulaire…) — les canaux à 0 % sont masqués*
+
+- **Filtres par défaut sur 12 mois glissants** : À l'ouverture de l'écran KPI, la période est automatiquement pré-remplie sur les 12 derniers mois 🌐
+  *Fini d'avoir à régler les dates à chaque visite : l'écran affiche directement l'année en cours. Le lien « Effacer les filtres » revient à ces 12 derniers mois*
+
+### 🐛 Corrections de bugs
+
+- **Plantage du taux de conversion sur année seule** : Filtrer sur une année sans préciser de mois ne fait plus planter l'application 🐞
+  *Le mois par défaut est désormais janvier pour le début et décembre pour la fin de période*
+
+---
+
 ## 🎉 **0.0.5** *(22 novembre 2026)*
 
 ### 🛠️ Améliorations techniques

@@ -70,7 +70,7 @@
   <a href="{{ _carte.lien }}" class="carte-lien">
     <div class="carte carte-kpi">
       <h3 class="carte-titre">{{ _carte.libelle }}</h3>
-      <p class="carte-total">{% if _carte.pourcentage %}{{ "%.1f"|format(_carte.total * 100) }} %{% else %}{{ _carte.total|int }}{% endif %}</p>
+      <p class="carte-total">{% if _carte.pourcentage %}{% if _carte.ratio %}{{ "%.1f"|format(_carte.total * 100) }}{% else %}{{ "%.1f"|format(_carte.total) }}{% endif %} %{% else %}{{ _carte.total|int }}{% endif %}</p>
       {% if _carte.serie|length > 1 %}
       <div style="height: 50px;"><canvas id="spark-{{ _carte.nom }}" class="sparkline"></canvas></div>
       {% else %}
@@ -134,10 +134,12 @@
           {% for _val in _ligne.dimensions %}
           <td>{{ _val }}</td>
           {% endfor %}
-          {% if _ligne.valeur == _ligne.valeur|int %}
+          {% if indicateur_selectionne in ("TauxGhosting", "TauxConversion") %}
+          <td style="text-align: right;">{{ "%.1f"|format(_ligne.valeur if indicateur_selectionne == "TauxConversion" else _ligne.valeur * 100) }} %</td>
+          {% elif _ligne.valeur == _ligne.valeur|int %}
           <td style="text-align: right;">{{ _ligne.valeur|int }}</td>
           {% else %}
-          <td style="text-align: right;">{{ "%.2f"|format(_ligne.valeur) }} %</td>
+          <td style="text-align: right;">{{ "%.2f"|format(_ligne.valeur) }}</td>
           {% endif %}
         </tr>
         {% endfor %}
@@ -230,7 +232,8 @@
       const ctx = document.getElementById('chartSimple');
       if (!ctx) return;
       
-      const isPercentage = {{ 1 if indicateur_selectionne == "TauxGhosting" else 0 }};
+      const isPercentage = {{ 1 if indicateur_selectionne in ("TauxGhosting", "TauxConversion") else 0 }};
+      const isRatio = {{ 1 if indicateur_selectionne == "TauxGhosting" else 0 }};
       
       new Chart(ctx, {
         type: 'bar',
@@ -262,7 +265,8 @@
             tooltip: {
               callbacks: {
                 label: function(context) {
-                  const value = isPercentage ? (context.parsed.y * 100).toFixed(1) + '%' : context.parsed.y;
+                  const v = isRatio ? context.parsed.y * 100 : context.parsed.y;
+                  const value = isPercentage ? v.toFixed(1) + '%' : context.parsed.y;
                   return context.dataset.label + ': ' + value;
                 }
               }
@@ -271,7 +275,8 @@
           scales: {
             y: {
               beginAtZero: true,
-              title: { display: true, text: isPercentage ? 'Valeur (%)' : 'Nombre' }
+              max: isPercentage ? 100 : undefined,
+              title: { display: true, text: isPercentage ? 'Pourcentage (%)' : 'Nombre' }
             }
           }
         }
@@ -523,7 +528,7 @@ const isPercentage = {{ 1 if indicateur_selectionne == "TauxGhosting" else 0 }};
 // Fonction pour formater une valeur
 function formatValue(valeur) {
   if (isPercentage) {
-    return (valeur * 100).toFixed(1) + '%';
+    return isRatio ? (valeur * 100).toFixed(1) + '%' : valeur.toFixed(1) + '%';
   } else if (Number.isInteger(valeur)) {
     return valeur.toString();
   } else {
@@ -723,7 +728,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!ctx) return;
     const labels = {{ _carte.serie|map(attribute=0)|list|tojson }};
     let data = {{ _carte.serie|map(attribute=1)|list|tojson }};
-    {% if _carte.pourcentage %}data = data.map(v => v * 100);{% endif %}
+    {% if _carte.pourcentage and _carte.ratio %}data = data.map(v => v * 100);{% endif %}
     new Chart(ctx, {
       type: 'line',
       data: { labels: labels, datasets: [{ data: data, borderColor: 'rgba(53, 63, 56, 0.9)', backgroundColor: 'rgba(53, 63, 56, 0.12)', borderWidth: 2, fill: true, pointRadius: 2, tension: 0.3 }] },

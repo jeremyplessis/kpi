@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient  # noqa: E402 - chemin ajusté pour le
 from kpi.bdd.connexion import BaseDonnees  # noqa: E402 - chemin ajusté pour les tests
 from kpi.bdd.modeles import ReferentielRepository, SuiviRepository  # noqa: E402 - chemin ajusté pour les tests
 from kpi.suivi import EvenementSuivi  # noqa: E402 - chemin ajusté pour les tests
-from kpi.web.routes import ApplicationWeb  # noqa: E402 - chemin ajusté pour les tests
+from kpi.web.routes import ApplicationWeb, _periode_par_defaut  # noqa: E402 - chemin ajusté pour les tests
 
 #: Valeurs de référence minimales pour alimenter les listes déroulantes.
 REFERENTIELS_TEST = {
@@ -750,6 +750,30 @@ class TestCharteGraphique(unittest.TestCase):
         _reponse = self._client.get("/")
         self.assertIn("background-image", _reponse.text)
         self.assertIn("rgba(135, 150, 117, .07)", _reponse.text)
+
+
+class TestPeriodeParDefaut(unittest.TestCase):
+    """Tests de la fonction _periode_par_defaut (12 mois glissants)."""
+
+    def test_milieu_annee(self) -> None:
+        """15 novembre 2026 → décembre 2025 à novembre 2026."""
+        self.assertEqual(_periode_par_defaut(date(2026, 11, 15)), (2025, 12, 2026, 11))
+
+    def test_janvier_passage_annee(self) -> None:
+        """10 janvier 2026 → février 2025 à janvier 2026."""
+        self.assertEqual(_periode_par_defaut(date(2026, 1, 10)), (2025, 2, 2026, 1))
+
+    def test_decembre(self) -> None:
+        """31 décembre 2026 → janvier 2026 à décembre 2026 (12 mois même année)."""
+        self.assertEqual(_periode_par_defaut(date(2026, 12, 31)), (2026, 1, 2026, 12))
+
+    def test_premier_du_mois(self) -> None:
+        """1er février 2026 → mars 2025 à février 2026."""
+        self.assertEqual(_periode_par_defaut(date(2026, 2, 1)), (2025, 3, 2026, 2))
+
+    def test_annee_bissextile(self) -> None:
+        """Février 2028 (bissextile) → mars 2027 à février 2028."""
+        self.assertEqual(_periode_par_defaut(date(2028, 2, 29)), (2027, 3, 2028, 2))
 
 
 if __name__ == "__main__":
