@@ -472,9 +472,9 @@ class ApplicationWeb:
                         # de tous les événements + les bornes de la période.
                         if hasattr(_indicateur, "calculer_periode"):
                             _a_d = int(_annee_debut) if _annee_debut else None
-                            _m_d = int(_mois_debut) if _mois_debut else None
+                            _m_d = int(_mois_debut) if _mois_debut else (1 if _a_d else None)
                             _a_f = int(_annee_fin) if _annee_fin else None
-                            _m_f = int(_mois_fin) if _mois_fin else None
+                            _m_f = int(_mois_fin) if _mois_fin else (12 if _a_f else None)
                             _debut = (_a_d, _m_d) if _a_d else None
                             _fin = (_a_f, _m_f) if _a_f else None
                             _lignes_indicateur = _indicateur.calculer_periode(
@@ -666,9 +666,9 @@ class ApplicationWeb:
         }
         # Bornes de période pour les indicateurs avec calculer_periode
         _a_d = int(_annee_debut) if _annee_debut else None
-        _m_d = int(_mois_debut) if _mois_debut else None
+        _m_d = int(_mois_debut) if _mois_debut else (1 if _a_d else None)
         _a_f = int(_annee_fin) if _annee_fin else None
-        _m_f = int(_mois_fin) if _mois_fin else None
+        _m_f = int(_mois_fin) if _mois_fin else (12 if _a_f else None)
         _debut = (_a_d, _m_d) if _a_d else None
         _fin = (_a_f, _m_f) if _a_f else None
         # Événements filtrés pour les indicateurs classiques
