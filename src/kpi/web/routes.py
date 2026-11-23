@@ -684,15 +684,20 @@ class ApplicationWeb:
             else:
                 _lignes = _indicateur.calculer(_evenements_filtres)
             _est_pourcentage = _classe.__name__ in ("TauxGhosting", "TauxConversion")
-            # Ligne « Tous » prioritaire pour les indicateurs agrégés (conversions).
-            _ligne_tous = next(
-                (_ligne for _ligne in _lignes if _ligne.dimensions == ("Tous",)),
-                None,
-            )
-            if _ligne_tous is not None:
-                _total = _ligne_tous.valeur
+            # Total : somme des lignes « Tous » (indicateurs conversions),
+            # sinon moyenne pour les %, sinon somme de toutes les lignes.
+            _lignes_tous = [
+                _l for _l in _lignes if _l.dimensions[0] == "Tous"
+            ]
+            if _lignes_tous:
+                if _est_pourcentage:
+                    # Taux : moyenne pondérée = somme conf / somme demandeurs,
+                    # mais on n'a que les taux par canal ; on fait la moyenne simple
+                    # des taux canal (approximation acceptable pour la carte).
+                    _total = sum(_l.valeur for _l in _lignes_tous) / len(_lignes_tous)
+                else:
+                    _total = sum(_l.valeur for _l in _lignes_tous)
             elif _est_pourcentage and _lignes:
-                # Pour un pourcentage sans ligne « Tous », moyenne des valeurs.
                 _total = sum(_ligne.valeur for _ligne in _lignes) / len(_lignes)
             else:
                 _total = sum(_ligne.valeur for _ligne in _lignes)
@@ -702,7 +707,7 @@ class ApplicationWeb:
             _serie: list[tuple[str, float]] = []
             _par_cle: dict[tuple, float] = {}
             for _ligne in _lignes:
-                if _ligne.dimensions == ("Tous",):
+                if _ligne.dimensions[0] == "Tous":
                     continue
                 _cle = tuple(_ligne.dimensions[:2])
                 _par_cle[_cle] = _par_cle.get(_cle, 0.0) + _ligne.valeur

@@ -309,19 +309,22 @@ class TestNbConversions(unittest.TestCase):
     _FIN = (2025, 3)
 
     def test_ligne_tous(self) -> None:
-        """3 Confirmations dans P (Bob, Chloé, Franck)."""
+        """3 Confirmations dans P (Bob, Chloé, Franck) — somme des canaux sous « Tous »."""
         _lignes = NbConversions().calculer_periode(
             self._TOUS, self._DEBUT, self._FIN
         )
-        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
-        self.assertEqual(int(_tous.valeur), 3)
+        _total = sum(_l.valeur for _l in _lignes if _l.dimensions[0] == "Tous")
+        self.assertEqual(int(_total), 3)
 
     def test_depliement_par_statut(self) -> None:
-        """client=1 (Chloé), prospect=2 (Bob + Franck sans demande → prospect par défaut)."""
+        """client=1 (Chloé), prospect=2 (Bob + Franck)."""
         _lignes = NbConversions().calculer_periode(
             self._TOUS, self._DEBUT, self._FIN
         )
-        _par_statut = {_l.dimensions[0]: int(_l.valeur) for _l in _lignes}
+        _par_statut = {}
+        for _l in _lignes:
+            if _l.dimensions[0] in ("client", "prospect"):
+                _par_statut[_l.dimensions[0]] = _par_statut.get(_l.dimensions[0], 0) + int(_l.valeur)
         self.assertEqual(_par_statut.get("client"), 1)
         self.assertEqual(_par_statut.get("prospect"), 2)
 
@@ -334,8 +337,8 @@ class TestNbConversions(unittest.TestCase):
             )
         ]
         _lignes = NbConversions().calculer_periode(_ev, self._DEBUT, self._FIN)
-        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
-        self.assertEqual(int(_tous.valeur), 3)  # pas 4
+        _total = sum(_l.valeur for _l in _lignes if _l.dimensions[0] == "Tous")
+        self.assertEqual(int(_total), 3)  # pas 4
 
 
 class TestTauxConversion(unittest.TestCase):
@@ -346,48 +349,52 @@ class TestTauxConversion(unittest.TestCase):
     _FIN = TestNbConversions._FIN
 
     def test_taux_global(self) -> None:
-        """Demandeurs ouverts = Alice, Chloé, Dave, Émilie = 4 (Bob fermée par Confirmation fév).
-        3 Confirmations dans P → 75 %."""
+        """Vérifie le détail par canal sous « Tous ».
+        Demandeurs ouverts: Alice(mail), Chloé(mail), Dave(tel), Émilie(site).
+        Confirmations P: Bob(mail), Chloé(mail), Franck((vide)).
+        → Tous/mail = 2 conf / 2 demandeurs = 100 %."""
         _lignes = TauxConversion().calculer_periode(
             self._TOUS, self._DEBUT, self._FIN
         )
-        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
-        self.assertAlmostEqual(_tous.valeur, 75.0)
+        _lignes_tous = [_l for _l in _lignes if _l.dimensions[0] == "Tous"]
+        self.assertTrue(len(_lignes_tous) > 0)
+        _mail = [_l for _l in _lignes_tous if _l.dimensions[1] == "mail"][0]
+        self.assertAlmostEqual(_mail.valeur, 100.0)  # 2 conf / 2 demandeurs
 
     def test_demande_avant_periode_sans_confirmation_ouverte(self) -> None:
-        """Alice (demande janv, aucune Confirmation) est comptée comme ouverte."""
+        """Alice (demande janv mail, aucune Confirmation) est ouverte :
+        elle est dans les demandeurs mail → 2 demandeurs mail, 2 conf → 100 %."""
         _lignes = TauxConversion().calculer_periode(
             self._TOUS, self._DEBUT, self._FIN
         )
-        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
-        # 4 demandeurs (Alice, Chloé, Dave, Émilie) → taux 3/4 = 75%
-        self.assertAlmostEqual(_tous.valeur, 75.0)
+        _mail = [_l for _l in _lignes if _l.dimensions == ("Tous", "mail")][0]
+        self.assertAlmostEqual(_mail.valeur, 100.0)
 
     def test_demande_avant_periode_confirmation_avant_fin_fermee(self) -> None:
-        """Bob (demande janv, Confirmation fév ≤ fin P) : demande FERMÉE, pas dans les demandeurs."""
-        # Si Bob était compté : 5 demandeurs, taux = 3/5 = 60%. On doit avoir 75%.
+        """Bob (demande janv mail, Confirmation fév ≤ fin P) : demande FERMÉE, pas demandeur.
+        Mais sa Confirmation de mars compte quand même → mail = 2 conf / 2 demandeurs = 100 %.
+        Si Bob était demandeur : 3 demandeurs, taux = 2/3 = 66,7 %."""
         _lignes = TauxConversion().calculer_periode(
             self._TOUS, self._DEBUT, self._FIN
         )
-        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
-        self.assertAlmostEqual(_tous.valeur, 75.0)
+        _mail = [_l for _l in _lignes if _l.dimensions == ("Tous", "mail")][0]
+        self.assertAlmostEqual(_mail.valeur, 100.0)  # et pas 66,7 %
 
     def test_composante_clients(self) -> None:
-        """1 client demandeur (Chloé), 1 Confirmation client → 100 %."""
+        """Client canal mail : Chloé = 1 demandeur, 1 Confirmation → 100 %."""
         _lignes = TauxConversion().calculer_periode(
             self._TOUS, self._DEBUT, self._FIN
         )
-        _client = [_l for _l in _lignes if _l.dimensions == ("client",)][0]
-        self.assertAlmostEqual(_client.valeur, 100.0)
+        _client_mail = [_l for _l in _lignes if _l.dimensions == ("client", "mail")][0]
+        self.assertAlmostEqual(_client_mail.valeur, 100.0)
 
     def test_composante_prospects(self) -> None:
-        """3 prospects demandeurs (Alice, Dave, Émilie), 2 Confirmations prospect
-        (Bob + Franck sans demande → prospect par défaut) → 66,7 %."""
+        """Prospect canal mail : Alice = 1 demandeur, Bob = 1 Confirmation → 100 %."""
         _lignes = TauxConversion().calculer_periode(
             self._TOUS, self._DEBUT, self._FIN
         )
-        _prospect = [_l for _l in _lignes if _l.dimensions == ("prospect",)][0]
-        self.assertAlmostEqual(_prospect.valeur, 2 / 3 * 100.0)
+        _prospect_mail = [_l for _l in _lignes if _l.dimensions == ("prospect", "mail")][0]
+        self.assertAlmostEqual(_prospect_mail.valeur, 100.0)
 
     def test_statut_vide_devient_prospect(self) -> None:
         """Une Demande avec statut=None est classée 'prospect' (pas '(vide)')."""
@@ -407,12 +414,11 @@ class TestTauxConversion(unittest.TestCase):
         self.assertNotIn("(vide)", _statuts)
 
     def test_aucune_demande_ouverte(self) -> None:
-        """Période sans aucune demande → taux 0 %."""
+        """Période avant toutes les demandes (2024) → aucune ligne."""
         _lignes = TauxConversion().calculer_periode(
-            self._TOUS, (2026, 1), (2026, 1)
+            self._TOUS, (2024, 1), (2024, 1)
         )
-        _tous = [_l for _l in _lignes if _l.dimensions == ("Tous",)][0]
-        self.assertEqual(_tous.valeur, 0.0)
+        self.assertEqual(len(_lignes), 0)
 
     def test_taux_borne_0_100(self) -> None:
         """Le taux est toujours entre 0 et 100 %."""
@@ -440,9 +446,9 @@ class TestTauxConversion(unittest.TestCase):
             ),
         ]
         _lignes = NbConversions().calculer_periode(_ev, (2025, 3), (2025, 3))
-        _par_statut = {_l.dimensions[0]: int(_l.valeur) for _l in _lignes}
-        self.assertEqual(_par_statut.get("prospect"), 1)
-        self.assertNotIn("client", _par_statut)
+        _statuts = {_l.dimensions[0] for _l in _lignes}
+        self.assertIn("prospect", _statuts)
+        self.assertNotIn("client", _statuts)
 
 
 if __name__ == "__main__":

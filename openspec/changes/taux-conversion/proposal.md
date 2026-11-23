@@ -6,8 +6,8 @@ L'application calcule 4 indicateurs (prospects, demandes, taux de ghosting, RDV 
 
 ## What Changes
 
-- **Nouveau** : classe `NbConversions` dans `src/kpi/kpi/indicateurs.py` — compte les conversions (Confirmations) dans la période, avec ligne « Tous » et dépliement par statut.
-- **Nouveau** : classe `TauxConversion` dans `src/kpi/kpi/indicateurs.py` — calcule le taux global (Confirmations / demandes ouvertes × 100) avec dépliement clients / prospects.
+- **Nouveau** : classe `NbConversions` dans `src/kpi/kpi/indicateurs.py` — compte les conversions (Confirmations) dans la période, avec hiérarchie Tous → statut (client/prospect) → canal de la première demande.
+- **Nouveau** : classe `TauxConversion` dans `src/kpi/kpi/indicateurs.py` — calcule le taux global (Confirmations / demandes ouvertes × 100) avec la même hiérarchie Tous → statut → canal.
 - **Modifié** : `REGISTRE_INDICATEURS` — ajout des deux nouvelles classes.
 - **Nouveau** : tests dans `tests/test_calculs_kpi.py`.
 - **Modifié** : `src/kpi/web/routes.py` — les indicateurs de conversion reçoivent tous les événements (pas seulement la période filtrée) + les bornes de période, pour détecter les demandes antérieures encore ouvertes.
@@ -52,14 +52,16 @@ taux_global = nb_conversions / len(demandeurs) × 100
 
 ### Décomposition en composantes
 
-En dépliant le résultat, deux composantes :
+En dépliant le résultat, la hiérarchie est : **Tous → statut → canal**.
 
 ```
-taux_clients   = conversions_clients / demandeurs_clients × 100
-taux_prospects = conversions_prospects / demandeurs_prospects × 100
+taux_global           = nb_confirmations / nb_demandeurs × 100
+taux_statut_S         = confirmations_S / demandeurs_S × 100
+taux_statut_S_canal_C = confirmations_{S,C} / demandeurs_{S,C} × 100
 ```
 
-- Le **statut** (client/prospect) d'une personne est celui de sa **première demande** (chronologiquement, avant ou dans P). Un `statut_contact` vide (None) vaut **« prospect »** (règle validée : une demande sans statut est un prospect).
+- Le **statut** (client/prospect) d'une personne est celui de sa **première demande** (chronologiquement, avant ou dans P). Un `statut_contact` vide (None) vaut **« prospect »**.
+- Le **canal** d'une personne est celui de sa **première demande** (champ `canal`).
 - `conversions_S` = nombre de Confirmations dans P pour des personnes de statut S.
 - `demandeurs_S` = nombre de demandeurs de statut S (selon la règle ci-dessus).
 - Si `demandeurs_S` = 0, la composante n'apparaît pas.

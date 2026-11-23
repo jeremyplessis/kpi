@@ -4,7 +4,15 @@
 
 ### Requirement: Indicateur « Nombre de conversions »
 
-L'application compte les événements `action_photographe = "Confirmation"` dans la période filtrée de l'écran KPI, avec une ligne « Tous » (total) et un dépliement par statut de la personne (basé sur sa première demande).
+L'application compte les événements `action_photographe = "Confirmation"` dans la période filtrée de l'écran KPI, avec une hiérarchie dépliable : **Tous → statut → canal**.
+
+#### Scenario: Hiérarchie Tous → canal → statut → canal
+
+- **WHEN** l'utilisatrice affiche l'indicateur « Nombre de conversions »
+- **THEN** la ligne « Tous » affiche le total des Confirmations
+- **AND** en dépliant « Tous », les canaux cumulés (tous statuts confondus) apparaissent : mail, téléphone, etc.
+- **AND** sous chaque canal, les lignes « client » et « prospect » apparaissent
+- **AND** en dépliant un statut, son détail par canal apparaît
 
 #### Scenario: Confirmation dans la période = conversion
 
@@ -25,12 +33,12 @@ L'application compte les événements `action_photographe = "Confirmation"` dans
 
 ### Requirement: Indicateur « Taux de conversion »
 
-L'application calcule le taux de conversion global sur la période filtrée : pourcentage de demandes ouvertes converties en séances. En dépliant, deux composantes : clients et prospects.
+L'application calcule le taux de conversion global sur la période filtrée : pourcentage de demandes ouvertes converties en séances. La hiérarchie dépliable est : **Tous → statut → canal**.
 
 ```
-taux_global    = nb_confirmations_dans_P / nb_demandeurs_ouverts × 100
-taux_clients   = confirmations_clients / demandeurs_clients × 100
-taux_prospects = confirmations_prospects / demandeurs_prospects × 100
+taux_global           = nb_confirmations_dans_P / nb_demandeurs_ouverts × 100
+taux_statut_S         = confirmations_S / demandeurs_S × 100
+taux_statut_S_canal_C = confirmations_{S,C} / demandeurs_{S,C} × 100
 ```
 
 #### Scenario: Demande dans la période, toujours comptée
