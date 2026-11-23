@@ -4,74 +4,102 @@
 
 ### Requirement: Indicateur « Nombre de conversions »
 
-L'application calcule le nombre de prospects convertis en clients, regroupés par année, mois et canal d'acquisition, avec dépliement hiérarchique (année → mois → canal).
+L'application calcule le nombre de demandes converties en séances sur la période filtrée de l'écran KPI, avec une ligne « Tous » (total) et un dépliement par statut du demandeur (client / prospect).
 
-#### Scenario: Conversion simple prospect → client
+Une **conversion en séance** est une personne ayant au moins une demande (`action_public ∈ {"Demande", "Réservation"}`) ET au moins un événement avec `action_photographe = "Confirmation"`, tous deux dans la période filtrée.
 
-- **WHEN** une personne a un événement avec `statut_contact = "prospect"` puis un événement ultérieur avec `statut_contact = "client"`
+#### Scenario: Demande + Confirmation = conversion
+
+- **WHEN** une personne a un événement avec `action_public = "Demande"` et un autre événement avec `action_photographe = "Confirmation"` dans la période
 - **THEN** cette personne compte pour 1 conversion
-- **AND** la conversion est attribuée à l'année et au mois du premier événement « client »
-- **AND** le canal attribué est celui du premier événement de la personne (canal d'acquisition)
+- **AND** le statut retenu est celui de son premier événement de demande dans la période
 
-#### Scenario: Arrivée directe en client
+#### Scenario: Demande sans Confirmation
 
-- **WHEN** une personne a un premier événement avec `statut_contact = "client"` sans jamais avoir été « prospect »
-- **THEN** cette personne compte pour 1 conversion
-- **AND** le canal attribué est celui de ce premier événement
+- **WHEN** une personne a une demande mais aucun événement avec `action_photographe = "Confirmation"` dans la période
+- **THEN** elle n'est pas comptée comme conversion
+- **AND** elle compte quand même dans les demandes (dénominateur du taux)
 
-#### Scenario: Une personne = une seule conversion
+#### Scenario: Confirmation sans demande
 
-- **WHEN** une personne passe prospect → client plusieurs fois (changement de statut répété)
-- **THEN** seule la première transition prospect → client est comptée
-- **AND** les transitions ultérieures sont ignorées
+- **WHEN** une personne a un événement avec `action_photographe = "Confirmation"` mais aucune demande dans la période
+- **THEN** elle n'est pas comptée comme conversion
+- **AND** elle n'apparaît pas dans les demandeurs
 
-#### Scenario: Personne jamais convertie
+#### Scenario: Plusieurs demandes, une seule conversion
 
-- **WHEN** une personne reste « prospect » dans tous ses événements
-- **THEN** elle n'apparaît dans aucune ligne de l'indicateur
+- **WHEN** une personne a 3 demandes sur 3 mois différents et 1 Confirmation dans la période
+- **THEN** elle compte pour 1 conversion (pas 3)
+- **AND** elle compte pour 1 demandeur (pas 3)
 
-#### Scenario: Agrégation par année, mois, canal
+#### Scenario: Dépliement par statut
 
-- **WHEN** plusieurs conversions ont lieu le même mois via le même canal d'acquisition
-- **THEN** elles sont agrégées en une seule ligne avec la somme
+- **WHEN** l'utilisatrice déplie la ligne « Tous » de l'indicateur NbConversions
+- **THEN** deux sous-lignes apparaissent : « client » et « prospect » avec le nombre de conversions pour chaque statut
 
 ### Requirement: Indicateur « Taux de conversion »
 
-L'application calcule le taux de conversion : pourcentage de conversions par rapport au nombre total de demandes, avec détail par année, mois et canal d'acquisition.
+L'application calcule le taux de conversion global sur la période filtrée : pourcentage de demandeurs ayant abouti à une séance. En dépliant, deux composantes sont affichées : clients et prospects.
 
-#### Scenario: Calcul du taux par groupe
+```
+taux_global    = nb_convertis / nb_demandeurs × 100
+taux_clients   = nb_convertis_clients / nb_demandeurs_clients × 100
+taux_prospects = nb_convertis_prospects / nb_demandeurs_prospects × 100
+```
 
-- **WHEN** un groupe (année, mois, canal) contient 3 demandes et 1 conversion
-- **THEN** le taux affiché pour ce groupe est 1/3 ≈ 33,3 %
+#### Scenario: Calcul du taux global
 
-#### Scenario: Aucune demande dans le groupe
+- **WHEN** sur la période filtrée, 10 personnes ont fait une demande et 4 ont une Confirmation
+- **THEN** le taux global affiché est 40,0 %
 
-- **WHEN** un groupe (année, mois, canal) contient des conversions mais aucune demande (cas anormal)
-- **THEN** aucune ligne de taux n'est produite pour ce groupe (pas de division par zéro)
+#### Scenario: Décomposition clients / prospects
 
-#### Scenario: Aucune conversion dans le groupe
+- **WHEN** parmi les 10 demandeurs, 6 sont « client » (dont 3 convertis) et 4 sont « prospect » (dont 1 converti)
+- **THEN** la composante clients affiche 50,0 % (3/6)
+- **AND** la composante prospects affiche 25,0 % (1/4)
 
-- **WHEN** un groupe (année, mois, canal) contient des demandes mais 0 conversion
-- **THEN** le taux affiché pour ce groupe est 0 %
+#### Scenario: Aucune demande sur la période
+
+- **WHEN** aucune personne n'a fait de demande dans la période filtrée
+- **THEN** le taux global affiche « — » (pas de division par zéro)
+- **AND** les composantes clients et prospects affichent aussi « — »
+
+#### Scenario: Composante sans demande
+
+- **WHEN** aucun prospect n'a fait de demande dans la période, mais des clients oui
+- **THEN** la composante prospects affiche « — »
+- **AND** la composante clients affiche le taux calculé normalement
 
 #### Scenario: Taux borné entre 0 et 100 %
 
 - **WHEN** le taux est calculé
-- **THEN** il est toujours compris entre 0 et 1 (0 % et 100 %)
+- **THEN** il est toujours compris entre 0 et 100 (inclus)
+
+#### Scenario: Le statut est celui du premier événement de demande
+
+- **WHEN** une personne a un premier événement de demande avec `statut_contact = "prospect"` puis un deuxième avec `statut_contact = "client"` dans la même période
+- **THEN** le statut retenu pour cette personne est « prospect » (premier événement de demande)
 
 ### Requirement: Intégration dans le registre et l'interface
 
-Les deux nouveaux indicateurs sont enregistrés dans `REGISTRE_INDICATEURS` et apparaissent dans la liste déroulante de la page `/kpi`, dans les cartes du tableau de bord, et dans la page de détail avec tableau et graphique.
+Les deux nouveaux indicateurs sont enregistrés dans `REGISTRE_INDICATEURS` et apparaissent dans la liste déroulante de la page `/kpi`, dans les cartes du tableau de bord, et dans la page de détail avec tableau dépliable et graphique.
 
 #### Scenario: Tableau de bord
 
 - **WHEN** l'utilisatrice ouvre `/kpi` sans sélectionner d'indicateur
 - **THEN** 6 cartes de synthèse sont affichées (les 4 existantes + NbConversions + TauxConversion)
-- **AND** la carte « Taux de conversion » affiche le ratio global (somme conversions / somme demandes) en pourcentage
-- **AND** la carte « Nombre de conversions » affiche la somme des conversions
+- **AND** la carte « Taux de conversion » affiche le taux global en pourcentage (ligne « Tous »)
+- **AND** la carte « Nombre de conversions » affiche le total des conversions (ligne « Tous »)
 
-#### Scenario: Page de détail d'un indicateur de conversion
+#### Scenario: Page de détail du taux de conversion
 
-- **WHEN** l'utilisatrice sélectionne « Nombre de conversions » ou « Taux de conversion » dans `/kpi`
-- **THEN** le tableau dépliable affiche les données par année → mois → canal
-- **AND** le graphique Chart.js affiche l'évolution
+- **WHEN** l'utilisatrice sélectionne « Taux de conversion » dans `/kpi`
+- **THEN** le tableau affiche la ligne « Tous » avec le pourcentage global
+- **AND** en cliquant sur « Tous », deux sous-lignes se déplient : « client » et « prospect » avec leurs pourcentages respectifs
+- **AND** le graphique Chart.js affiche 3 barres (Tous, Clients, Prospects)
+
+#### Scenario: Page de détail du nombre de conversions
+
+- **WHEN** l'utilisatrice sélectionne « Nombre de conversions » dans `/kpi`
+- **THEN** le tableau affiche la ligne « Tous » avec le nombre total de conversions
+- **AND** en dépliant, les sous-lignes « client » et « prospect » affichent les effectifs
