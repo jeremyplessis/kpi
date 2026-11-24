@@ -7,6 +7,18 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
+## 🎉 **0.0.7** *(25 novembre 2026)*
+
+### 🐛 Corrections de bugs
+
+- **Tableau du taux de ghosting enfin rempli** : Sur l'écran KPI, l'indicateur « Taux de ghosting » affichait un tableau vide alors que son graphique, lui, fonctionnait 🐞
+  *Une variable JavaScript manquait dans le script qui construit le tableau : celui-ci ne se remplissait jamais. Le détail mensuel (année, mois, demandes, réponses, taux) s'affiche à nouveau, repliable par année*
+
+- **Taux de ghosting annuel corrigé** : La ligne de l'année n'est plus la somme des taux mensuels, mais le vrai taux calculé sur toute l'année 🧮
+  *Exemple : janvier à 50 % et février à 0 % donnent une année à 33,3 % ((3 demandes − 2 réponses) / 3), et non 50 %. Et une année sans aucune demande restée sans réponse affiche désormais « 0,0 % » au lieu de « NaN% »*
+
+---
+
 ## 🎉 **0.0.6** *(24 novembre 2026)*
 
 ### ✨ Nouveautés

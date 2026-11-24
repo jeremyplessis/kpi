@@ -683,6 +683,147 @@ class TestGestionListes(unittest.TestCase):
         self.assertEqual(_reponse.status_code, 403)
 
 
+class TestPageKpiGhosting(unittest.TestCase):
+    """Tests de la page KPI pour l'indicateur Taux de ghosting.
+
+    Le tableau des indicateurs à 2 dimensions est généré en JavaScript :
+    la page doit donc définir ``isRatio`` avant son utilisation dans
+    ``formatValue`` (régression : le tableau restait vide, seul le
+    graphique était alimenté).
+    """
+
+    def setUp(self) -> None:
+        """Prépare une base temporaire avec des demandes et réponses."""
+        self._dossier = tempfile.TemporaryDirectory()
+        self._chemin_base = Path(self._dossier.name) / "test.sqlite3"
+        _base = BaseDonnees(self._chemin_base)
+        try:
+            _referentiels = ReferentielRepository(_base)
+            for _table, _valeurs in REFERENTIELS_TEST.items():
+                for _valeur in _valeurs:
+                    _referentiels.obtenir_ou_creer(_table, _valeur)
+            _suivi = SuiviRepository(_base)
+            # Décembre 2025 : 1 demande, 1 réponse -> taux 0 %
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2025, 12, 3), personne="Chloe",
+                statut_contact="prospect",
+                action_public="Demande", canal="mail",
+            ))
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2025, 12, 20), personne="Chloe",
+                statut_contact="prospect",
+                action_public="Réponse", canal="mail",
+            ))
+            # Janvier 2026 : 2 demandes, 1 réponse -> taux 50 %
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2026, 1, 5), personne="Alice",
+                statut_contact="prospect",
+                action_public="Demande", canal="mail",
+            ))
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2026, 1, 10), personne="Bob",
+                statut_contact="prospect",
+                action_public="Demande", canal="instagram",
+            ))
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2026, 1, 12), personne="Alice",
+                statut_contact="prospect",
+                action_public="Réponse", canal="mail",
+            ))
+            # Février 2026 : 1 demande, 1 réponse -> taux 0 %
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2026, 2, 2), personne="David",
+                statut_contact="prospect",
+                action_public="Demande", canal="téléphone",
+            ))
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2026, 2, 9), personne="David",
+                statut_contact="prospect",
+                action_public="Réponse", canal="téléphone",
+            ))
+            _base.valider()
+        finally:
+            _base.fermer()
+        self._application = ApplicationWeb(self._chemin_base)
+        self._client = TestClient(self._application.application)
+
+    def tearDown(self) -> None:
+        """Supprime le dossier temporaire."""
+        self._dossier.cleanup()
+
+    def test_tableau_ghosting_alimente_par_js(self) -> None:
+        """Le bloc JS du tableau dépliable définit isRatio et les données.
+
+        Avant la correction, ``formatValue`` levait une ReferenceError
+        (isRatio non défini) : le tableau restait vide.
+        """
+        _reponse = self._client.get(
+            "/kpi?indicateur=TauxGhosting&annee_debut=2026&mois_debut=1"
+            "&annee_fin=2026&mois_fin=12"
+        )
+        self.assertEqual(_reponse.status_code, 200)
+        # Le tableau dépliable est bien le mode d'affichage (2 dimensions).
+        self.assertIn('id="corps-tableau"', _reponse.text)
+        # isRatio est déclaré avant d'être utilisé par formatValue.
+        self.assertIn("const isRatio = 1;", _reponse.text)
+        # Les données du tableau JS contiennent le mois de janvier 2026.
+        self.assertRegex(_reponse.text, r'dimensions:\s*\[2026, 1\]')
+        self.assertIn("valeur: 0.5", _reponse.text)
+
+    def test_tableau_autre_indicateur_2d_definit_isratio_a_zero(self) -> None:
+        """Pour un indicateur à 2 dimensions non ratio, isRatio vaut 0."""
+        _reponse = self._client.get(
+            "/kpi?indicateur=NbConversions&annee_debut=2026&mois_debut=1"
+            "&annee_fin=2026&mois_fin=12"
+        )
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn('id="corps-tableau"', _reponse.text)
+        self.assertIn("const isRatio = 0;", _reponse.text)
+
+    def test_detail_demandes_reponses_serialise(self) -> None:
+        """Le détail demandes/réponses par mois est transmis au JS du tableau.
+
+        Valeurs témoins : 2025/12 = 1 demande 1 réponse (taux 0 %) ;
+        2026/1 = 2 demandes 1 réponse (taux 50 %) ; 2026/2 = 1 demande
+        1 réponse (taux 0 %). Agrégat 2026 attendu : (3-2)/3 = 33,3 %,
+        et non la somme des taux 50 % + 0 % = 50 %.
+        """
+        _reponse = self._client.get(
+            "/kpi?indicateur=TauxGhosting&annee_debut=2025&mois_debut=1"
+            "&annee_fin=2026&mois_fin=12"
+        )
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn('"2025/12"', _reponse.text)
+        self.assertRegex(_reponse.text, r"demandes:\s*1,\s*reponses:\s*1")
+        self.assertIn('"2026/1"', _reponse.text)
+        self.assertRegex(_reponse.text, r"demandes:\s*2,\s*reponses:\s*1")
+
+    def test_tableau_recalcule_le_taux_agrege(self) -> None:
+        """Le JS recalcule le taux agrégé depuis demandes/réponses.
+
+        Ne doit plus sommer les taux : la formule (D-R)/D sur les totaux
+        doit être présente dans le bloc du tableau.
+        """
+        _reponse = self._client.get("/kpi?indicateur=TauxGhosting")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn(
+            "Math.max(0, (node.demandes - node.reponses) / node.demandes)",
+            _reponse.text,
+        )
+
+    def test_tableau_total_zero_affiche_zero_pas_nan(self) -> None:
+        """Un total nul s'affiche 0 % : le `||` sur la valeur est supprimé.
+
+        Avant la correction, `formatValue(node.total || node)` recevait
+        l'objet nœud quand le total était 0 et affichait « NaN% » (cas de
+        l'année 2025 du jeu de test, taux 0 % sur son seul mois).
+        """
+        _reponse = self._client.get("/kpi?indicateur=TauxGhosting")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertNotIn("node.total || node", _reponse.text)
+        self.assertNotIn("total || 0", _reponse.text)
+
+
 class TestCharteGraphique(unittest.TestCase):
     """Tests du thème conforme à la charte graphique (nov. 2026)."""
 

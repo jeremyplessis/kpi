@@ -485,6 +485,7 @@ class ApplicationWeb:
             # Trouver l'indicateur sélectionné
             _indicateur_classe = None
             _lignes_indicateur = []
+            _lignes_detail: list[LigneGhosting] = []
             _indicateur_libelle = ""
             _indicateur_description = ""
             _indicateur_dimensions = []
@@ -508,6 +509,13 @@ class ApplicationWeb:
                             )
                         else:
                             _lignes_indicateur = _indicateur.calculer(
+                                _evenements_filtres
+                            )
+                        # Détail (demandes/réponses) quand l'indicateur le
+                        # fournit : le tableau recalcule alors le taux agrégé
+                        # au lieu de sommer les taux mensuels.
+                        if hasattr(_indicateur, "calculer_detail"):
+                            _lignes_detail = _indicateur.calculer_detail(
                                 _evenements_filtres
                             )
                         _indicateur_libelle = _indic_classe.libelle
@@ -537,6 +545,7 @@ class ApplicationWeb:
                 "annee_fin": _annee_fin,
                 "mois_fin": _mois_fin,
                 "lignes_indicateur": _lignes_indicateur,
+                "lignes_detail": _lignes_detail,
                 "indicateur_libelle": _indicateur_libelle,
                 "indicateur_description": _indicateur_description,
                 "indicateur_dimensions": _indicateur_dimensions,
