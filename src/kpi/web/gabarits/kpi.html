@@ -519,11 +519,25 @@ const lignesIndicateur = [
   {% endfor %}
 ];
 
+// Détail demandes/réponses par mois, quand l'indicateur le fournit (ex.
+// TauxGhosting) : permet de recalculer un taux agrégé correct sur la
+// période au lieu de sommer les taux mensuels.
+const lignesDetail = {
+  {% for _ligne in lignes_detail %}
+  "{{ _ligne.annee }}/{{ _ligne.mois }}": {
+    demandes: {{ _ligne.demandes }},
+    reponses: {{ _ligne.reponses }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+
 // Noms des dimensions
 const dimensionNames = {{ indicateur_dimensions|list|tojson }};
 
-// Indique si c'est un pourcentage
-const isPercentage = {{ 1 if indicateur_selectionne == "TauxGhosting" else 0 }};
+// Indique si c'est un pourcentage (TauxGhosting est un ratio 0-1,
+// TauxConversion est déjà en pourcentage 0-100)
+const isPercentage = {{ 1 if indicateur_selectionne in ("TauxGhosting", "TauxConversion") else 0 }};
+const isRatio = {{ 1 if indicateur_selectionne == "TauxGhosting" else 0 }};
 
 // Fonction pour formater une valeur
 function formatValue(valeur) {
@@ -547,12 +561,18 @@ function buildHierarchy(data, dimensions) {
     for (let i = 0; i < dimensions.length; i++) {
       const dimValue = line.dimensions[i];
       
-      // Si c'est le dernier niveau, on ajoute la valeur
+      // Si c'est le dernier niveau, on ajoute la valeur, accompagnée du
+      // détail demandes/réponses quand il existe (taux à recalculer ensuite)
       if (i === dimensions.length - 1) {
         if (!currentLevel.children) {
           currentLevel.children = {};
         }
-        currentLevel.children[dimValue] = line.valeur;
+        const _detail = lignesDetail[line.dimensions.join('/')];
+        currentLevel.children[dimValue] = {
+          valeur: line.valeur,
+          demandes: _detail ? _detail.demandes : undefined,
+          reponses: _detail ? _detail.reponses : undefined
+        };
       } else {
         // Sinon, on crée le niveau suivant
         if (!currentLevel.children) {
@@ -566,22 +586,49 @@ function buildHierarchy(data, dimensions) {
     }
   }
   
-  // Calculer les totaux pour chaque niveau
+  // Calculer les totaux pour chaque niveau. Quand un détail demandes/
+  // réponses existe, on l'agrège aussi : le taux affiché pour un niveau
+  // sera recalculé depuis ces totaux (jamais une somme de taux).
   function calculateTotals(node) {
     if (!node.children) return;
-    
-    // Si les enfants sont des valeurs (dernier niveau), calculer le total
+
     const childValues = Object.values(node.children);
-    if (childValues.length > 0 && typeof childValues[0] === 'number') {
-      node.total = childValues.reduce((a, b) => a + b, 0);
-    } else {
-      // Sinon, les enfants sont des objets, calculer leur total et le sommer
-      let total = 0;
-      for (const key in node.children) {
-        calculateTotals(node.children[key]);
-        total += node.children[key].total || 0;
+    if (childValues.length > 0 && typeof childValues[0].valeur === 'number') {
+      // Feuilles : somme des valeurs + agrégation du détail si présent
+      let total = 0, demandes = 0, reponses = 0, hasDetail = false;
+      for (const child of childValues) {
+        total += child.valeur;
+        if (child.demandes !== undefined) {
+          demandes += child.demandes;
+          reponses += child.reponses;
+          hasDetail = true;
+        }
       }
       node.total = total;
+      if (hasDetail) {
+        node.demandes = demandes;
+        node.reponses = reponses;
+        node.hasDetail = true;
+      }
+    } else {
+      // Nœuds intermédiaires : on descend, puis on somme les totaux
+      let total = 0, demandes = 0, reponses = 0, hasDetail = false;
+      for (const key in node.children) {
+        const child = node.children[key];
+        calculateTotals(child);
+        total += child.total !== undefined ? child.total : 0;
+        if (child.hasDetail) {
+          demandes += child.demandes;
+          reponses += child.reponses;
+          hasDetail = true;
+        }
+      }
+      node.total = total;
+      if (hasDetail) {
+        node.demandes = demandes;
+        node.reponses = reponses;
+        node.hasDetail = true;
+      }
     }
   }
   
@@ -610,8 +657,20 @@ function generateTableHTML(hierarchy, dimensions, depth = 0, pathPrefix = '', le
       emptyCells.push('<td></td>');
     }
     
-    // Cellule de valeur
-    const valueCell = `<td style="text-align: right;">${formatValue(node.total || node)}</td>`;
+    // Cellule de valeur. Un nœud agrégé avec détail (taux de ghosting) est
+    // recalculé depuis les demandes/réponses agrégées ; un total nul reste
+    // 0 (jamais NaN, d'où l'absence de `||` sur la valeur).
+    let brut;
+    if (node.total !== undefined) {
+      if (isRatio && node.hasDetail && node.demandes > 0) {
+        brut = Math.max(0, (node.demandes - node.reponses) / node.demandes);
+      } else {
+        brut = node.total;
+      }
+    } else {
+      brut = node.valeur;
+    }
+    const valueCell = `<td style="text-align: right;">${formatValue(brut)}</td>`;
     
     // Zebra striping sur les lignes finales (sans enfants)
     const zebraClass = isLeaf ? (leafCounter.n++ % 2 === 0 ? ' feuille-pair' : ' feuille-impair') : '';
