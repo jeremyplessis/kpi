@@ -7,7 +7,12 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
-## 🔜 **À venir** *(Next Release)*
+## 🎉 **0.0.9** *(26 novembre 2026)*
+
+### ✨ Nouveautés
+
+- **Lien vers l'historique des changements** : Le mot « changements », affiché après le numéro de version dans l'en-tête (ex. « v0.0.8 - changements »), ouvre le fichier `CHANGELOG.md` de la branche en cours sur GitHub dans un nouvel onglet 🌐
+  *Exemple : `https://github.com/jeremyplessis/kpi/blob/main/CHANGELOG.md`. Un clic suffit pour savoir ce qui a changé dans la version que vous utilisez, sans quitter l'application*
 
 ### 🛠️ Améliorations techniques
 

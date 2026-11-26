@@ -12,6 +12,7 @@ redirection.
 
 from datetime import date
 from pathlib import Path
+from subprocess import run as _run_subprocess
 from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, HTTPException, Request
@@ -129,6 +130,7 @@ class ApplicationWeb:
         self.modeles = Jinja2Templates(directory=str(_dossier_gabarits))
         self.modeles.env.filters["date_fr"] = formater_date_fr
         self.modeles.env.globals["version"] = __version__
+        self.modeles.env.globals["url_changelog"] = self._url_changelog()
         self.application = FastAPI(title="Suivi d'activité")
         _dossier_statique = Path(__file__).parent / "static"
         self.application.mount(
@@ -160,6 +162,28 @@ class ApplicationWeb:
     def _ouvrir_base(self) -> BaseDonnees:
         """Ouvre une connexion vers la base (le schéma est créé au besoin)."""
         return BaseDonnees(self.chemin_base)
+
+    # ------------------------------------------------------------------
+    # Lien vers le CHANGELOG publié sur GitHub
+    # ------------------------------------------------------------------
+
+    #: URL de base du dépôt GitHub pour consulter les fichiers publiés.
+    _URL_GITHUB = "https://github.com/jeremyplessis/kpi"
+
+    def _branche_courante(self) -> str:
+        """Retourne le nom de la branche git courante, « main » en repli."""
+        try:
+            _resultat = _run_subprocess(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True, text=True, timeout=5, check=True,
+            )
+            return _resultat.stdout.strip() or "main"
+        except Exception:
+            return "main"
+
+    def _url_changelog(self) -> str:
+        """URL du CHANGELOG.md de la branche courante, sur github.com."""
+        return f"{self._URL_GITHUB}/blob/{self._branche_courante()}/CHANGELOG.md"
 
     # ------------------------------------------------------------------
     # Page de saisie
