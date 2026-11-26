@@ -7,6 +7,15 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
+## 🎉 **0.0.8** *(26 novembre 2026)*
+
+### 🐛 Corrections de bugs
+
+- **Taux de conversion regroupé par statut enfin juste** : Sur l'écran KPI, les lignes « Tous », « client » et « prospect » du tableau dépliable affichaient la somme des taux par canal — jusqu'à 517,9 %, un chiffre sans aucun sens pour un pourcentage 🐞
+  *Le taux de chaque regroupement est désormais recalculé depuis les compteurs : confirmations ÷ demandes ouvertes. Exemple avec les données actuelles : prospect à 39,8 % (39 confirmations sur 98 demandes), client à 100 % (7/7), « Tous » à 43,8 % (46/105). La carte de synthèse du tableau de bord affiche elle aussi ce vrai taux global, et non plus une moyenne des taux par canal*
+
+---
+
 ## 🎉 **0.0.7** *(25 novembre 2026)*
 
 ### 🐛 Corrections de bugs
