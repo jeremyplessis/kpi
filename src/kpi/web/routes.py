@@ -27,6 +27,7 @@ from kpi.bdd.modeles import (
     SuiviRepository,
 )
 from kpi.kpi.indicateurs import (
+    LigneGhosting,
     REGISTRE_INDICATEURS,
     TauxGhosting,
 )
@@ -484,13 +485,11 @@ class ApplicationWeb:
             # Trouver l'indicateur sélectionné
             _indicateur_classe = None
             _lignes_indicateur = []
-            _lignes_detail: list = []
+            _lignes_detail: list[LigneGhosting] = []
             _indicateur_libelle = ""
             _indicateur_description = ""
             _indicateur_dimensions = []
-            _debut: tuple[int, int] | None = None
-            _fin: tuple[int, int] | None = None
-
+            
             if _indicateur_nom:
                 for _indic_classe in REGISTRE_INDICATEURS:
                     if _indic_classe.__name__ == _indicateur_nom:
@@ -512,18 +511,12 @@ class ApplicationWeb:
                             _lignes_indicateur = _indicateur.calculer(
                                 _evenements_filtres
                             )
-                        # Détail (demandes/réponses ou confirmations) quand
-                        # l'indicateur le fournit : le tableau recalcule
-                        # alors le taux agrégé au lieu de sommer les taux.
+                        # Détail (demandes/réponses) quand l'indicateur le
+                        # fournit : le tableau recalcule alors le taux agrégé
+                        # au lieu de sommer les taux mensuels.
                         if hasattr(_indicateur, "calculer_detail"):
                             _lignes_detail = _indicateur.calculer_detail(
                                 _evenements_filtres
-                            )
-                        elif hasattr(_indicateur, "calculer_detail_periode"):
-                            _lignes_detail = (
-                                _indicateur.calculer_detail_periode(
-                                    _evenements, _debut, _fin
-                                )
                             )
                         _indicateur_libelle = _indic_classe.libelle
                         _indicateur_description = _indic_classe.description
@@ -740,13 +733,7 @@ class ApplicationWeb:
             _lignes_tous = [
                 _l for _l in _lignes if _l.dimensions[0] == "Tous"
             ]
-            if hasattr(_indicateur, "taux_global_periode"):
-                # Taux recalculé depuis les compteurs (confirmations /
-                # demandes ouvertes), jamais une moyenne de taux par canal.
-                _total = _indicateur.taux_global_periode(
-                    _tous_evenements, _debut, _fin
-                )
-            elif _lignes_tous:
+            if _lignes_tous:
                 if _est_pourcentage:
                     # Taux : moyenne pondérée = somme conf / somme demandeurs,
                     # mais on n'a que les taux par canal ; on fait la moyenne simple

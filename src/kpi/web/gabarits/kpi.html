@@ -519,23 +519,15 @@ const lignesIndicateur = [
   {% endfor %}
 ];
 
-// Détail (demandes/réponses ou demandes/confirmations) quand l'indicateur
-// le fournit (ex. TauxGhosting, TauxConversion) : permet de recalculer un
-// taux agrégé correct depuis les compteurs, au lieu de sommer les taux.
+// Détail demandes/réponses par mois, quand l'indicateur le fournit (ex.
+// TauxGhosting) : permet de recalculer un taux agrégé correct sur la
+// période au lieu de sommer les taux mensuels.
 const lignesDetail = {
   {% for _ligne in lignes_detail %}
-  {% if indicateur_selectionne == "TauxConversion" %}
-  "{{ _ligne.dimensions|join('/') }}": {
-    demandes: {{ _ligne.demandes }},
-    confirmations: {{ _ligne.confirmations }}
-  }
-  {% else %}
   "{{ _ligne.annee }}/{{ _ligne.mois }}": {
     demandes: {{ _ligne.demandes }},
     reponses: {{ _ligne.reponses }}
-  }
-  {% endif %}
-  {% if not loop.last %},{% endif %}
+  }{% if not loop.last %},{% endif %}
   {% endfor %}
 };
 
@@ -546,25 +538,6 @@ const dimensionNames = {{ indicateur_dimensions|list|tojson }};
 // TauxConversion est déjà en pourcentage 0-100)
 const isPercentage = {{ 1 if indicateur_selectionne in ("TauxGhosting", "TauxConversion") else 0 }};
 const isRatio = {{ 1 if indicateur_selectionne == "TauxGhosting" else 0 }};
-const isConversion = {{ 1 if indicateur_selectionne == "TauxConversion" else 0 }};
-
-// Somme le détail de toutes les entrées dont la clé correspond au nœud
-// (clé exacte ou descendant « prefix/... ») : un canal à 0 %, absent des
-// lignes affichées, pèse ainsi quand même dans le dénominateur du taux
-// agrégé de son statut.
-function detailAgrege(prefix) {
-  let demandes = 0, reponses = 0, confirmations = 0, has = false;
-  for (const key in lignesDetail) {
-    if (key === prefix || key.startsWith(prefix + '/')) {
-      const d = lignesDetail[key];
-      demandes += d.demandes || 0;
-      reponses += d.reponses || 0;
-      confirmations += d.confirmations || 0;
-      has = true;
-    }
-  }
-  return has ? { demandes: demandes, reponses: reponses, confirmations: confirmations } : null;
-}
 
 // Fonction pour formater une valeur
 function formatValue(valeur) {
@@ -684,21 +657,16 @@ function generateTableHTML(hierarchy, dimensions, depth = 0, pathPrefix = '', le
       emptyCells.push('<td></td>');
     }
     
-    // Cellule de valeur. Un nœud agrégé (ligne parent : statut ou « Tous »)
-    // dont on connaît le détail est recalculé depuis les compteurs agrégés :
-    // un taux ne se somme jamais. Sans détail, on retombe sur le total.
+    // Cellule de valeur. Un nœud agrégé avec détail (taux de ghosting) est
+    // recalculé depuis les demandes/réponses agrégées ; un total nul reste
+    // 0 (jamais NaN, d'où l'absence de `||` sur la valeur).
     let brut;
-    const _detailAgg = detailAgrege(fullKey);
-    if (node.total !== undefined && _detailAgg && _detailAgg.demandes > 0 && (isRatio || isConversion)) {
-      if (isRatio) {
-        // Taux de ghosting (ratio 0-1, borné à 0)
-        brut = Math.max(0, (_detailAgg.demandes - _detailAgg.reponses) / _detailAgg.demandes);
+    if (node.total !== undefined) {
+      if (isRatio && node.hasDetail && node.demandes > 0) {
+        brut = Math.max(0, (node.demandes - node.reponses) / node.demandes);
       } else {
-        // Taux de conversion (déjà en pourcentage 0-100)
-        brut = _detailAgg.confirmations / _detailAgg.demandes * 100;
+        brut = node.total;
       }
-    } else if (node.total !== undefined) {
-      brut = node.total;
     } else {
       brut = node.valeur;
     }

@@ -59,19 +59,6 @@ class LigneGhosting(NamedTuple):
     taux: float
 
 
-class LigneConversionDetail(NamedTuple):
-    """Détail d'un taux de conversion : demandes ouvertes et confirmations.
-
-    ``dimensions`` vaut ``("Tous", canal)`` ou ``(statut, canal)``. Ce détail
-    sert à recalculer un taux agrégé (ex. par statut) depuis les compteurs :
-    jamais en sommant des taux, ce qui n'aurait pas de sens pour un ratio.
-    """
-
-    dimensions: tuple
-    demandes: int
-    confirmations: int
-
-
 class Indicateur:
     """Classe de base de tous les indicateurs KPI.
 
@@ -398,104 +385,45 @@ class TauxConversion(Indicateur):
         """Compatibilité : période = toutes les données."""
         return self.calculer_periode(_evenements, None, None)
 
-    def _compteurs_periode(
-        self,
-        _tous_evenements: Sequence[EvenementSuivi],
-        _debut: tuple[int, int] | None,
-        _fin: tuple[int, int] | None,
-    ) -> tuple[dict[tuple[str, str], int], dict[tuple[str, str], int]]:
-        """Retourne (demandes, confirmations) indexées par (statut, canal).
-
-        Chaque personne contribue à la fois à la ligne ``("Tous", canal)``
-        et à la ligne ``(statut, canal)`` : les agrégats « Tous » et par
-        statut se lisent directement dans ces compteurs, et un taux agrégé
-        se recalcule depuis eux (jamais en sommant des taux).
-        """
-        _demandeurs, _statut, _canal = _calculer_demandeurs_ouverts(
-            _tous_evenements, _debut, _fin
-        )
-        _confirmations = _compter_confirmations_dans_periode(
-            _tous_evenements, _debut, _fin
-        )
-        _dem: dict[tuple[str, str], int] = defaultdict(int)
-        _conf: dict[tuple[str, str], int] = defaultdict(int)
-        for _p in _demandeurs:
-            _s = _statut.get(_p, "prospect")
-            _c = _canal.get(_p, "(vide)")
-            _dem[("Tous", _c)] += 1
-            _dem[(_s, _c)] += 1
-        for _p, _nb in _confirmations.items():
-            _s = _statut.get(_p, "prospect")
-            _c = _canal.get(_p, "(vide)")
-            _conf[("Tous", _c)] += _nb
-            _conf[(_s, _c)] += _nb
-        return dict(_dem), dict(_conf)
-
-    def calculer_detail_periode(
-        self,
-        _tous_evenements: Sequence[EvenementSuivi],
-        _debut: tuple[int, int] | None,
-        _fin: tuple[int, int] | None,
-    ) -> list[LigneConversionDetail]:
-        """Détail (demandes, confirmations) par (« Tous »/statut, canal).
-
-        Toutes les combinaisons sont retournées, y compris à 0 % : un canal
-        sans conversion mais avec des demandes doit quand même peser dans
-        le dénominateur du taux agrégé par statut.
-        """
-        _dem, _conf = self._compteurs_periode(_tous_evenements, _debut, _fin)
-        _cles = sorted(set(_dem) | set(_conf))
-        return [
-            LigneConversionDetail(
-                dimensions=_cle,
-                demandes=_dem.get(_cle, 0),
-                confirmations=_conf.get(_cle, 0),
-            )
-            for _cle in _cles
-        ]
-
-    def taux_global_periode(
-        self,
-        _tous_evenements: Sequence[EvenementSuivi],
-        _debut: tuple[int, int] | None,
-        _fin: tuple[int, int] | None,
-    ) -> float:
-        """Taux global (%) sur la période : confirmations / demandes ouvertes.
-
-        Recalculé depuis les compteurs, jamais depuis les taux par canal.
-        """
-        _dem, _conf = self._compteurs_periode(_tous_evenements, _debut, _fin)
-        _nb_demandeurs = sum(
-            _nb for _cle, _nb in _dem.items() if _cle[0] == "Tous"
-        )
-        _nb_confirmations = sum(
-            _nb for _cle, _nb in _conf.items() if _cle[0] == "Tous"
-        )
-        if _nb_demandeurs > 0:
-            return _nb_confirmations / _nb_demandeurs * 100.0
-        return 0.0
-
     def calculer_periode(
         self,
         _tous_evenements: Sequence[EvenementSuivi],
         _debut: tuple[int, int] | None,
         _fin: tuple[int, int] | None,
     ) -> list[LigneIndicateur]:
-        """Calcule les composantes du taux par (statut, canal), en %."""
-        _dem_statut_canal, _conf_statut_canal = self._compteurs_periode(
+        """Calcule le taux global (%) et les composantes par (statut, canal)."""
+        _demandeurs, _statut, _canal = _calculer_demandeurs_ouverts(
             _tous_evenements, _debut, _fin
         )
+        _confirmations = _compter_confirmations_dans_periode(
+            _tous_evenements, _debut, _fin
+        )
+        _nb_demandeurs = len(_demandeurs)
+        _nb_confirmations = sum(_confirmations.values())
+        _taux_global = (
+            (_nb_confirmations / _nb_demandeurs * 100.0)
+            if _nb_demandeurs > 0
+            else 0.0
+        )
+        # Agrégations par (statut, canal), par statut, et par canal (cumul)
+        _dem_statut_canal: dict[tuple[str, str], int] = defaultdict(int)
+        _conf_statut_canal: dict[tuple[str, str], int] = defaultdict(int)
+        _dem_statut: dict[str, int] = defaultdict(int)
+        _conf_statut: dict[str, int] = defaultdict(int)
         _dem_canal: dict[str, int] = defaultdict(int)
         _conf_canal: dict[str, int] = defaultdict(int)
-        _dem_statut: dict[str, int] = defaultdict(int)
-        for (_s, _c), _nb in _dem_statut_canal.items():
-            if _s == "Tous":
-                _dem_canal[_c] += _nb
-            else:
-                _dem_statut[_s] += _nb
-        for (_s, _c), _nb in _conf_statut_canal.items():
-            if _s == "Tous":
-                _conf_canal[_c] += _nb
+        for _p in _demandeurs:
+            _s = _statut.get(_p, "prospect")
+            _c = _canal.get(_p, "(vide)")
+            _dem_statut_canal[(_s, _c)] += 1
+            _dem_statut[_s] += 1
+            _dem_canal[_c] += 1
+        for _p, _nb in _confirmations.items():
+            _s = _statut.get(_p, "prospect")
+            _c = _canal.get(_p, "(vide)")
+            _conf_statut_canal[(_s, _c)] += _nb
+            _conf_statut[_s] += _nb
+            _conf_canal[_c] += _nb
         _lignes: list[LigneIndicateur] = []
         # Canaux cumulés sous « Tous » (tous statuts confondus)
         for _c in sorted(_dem_canal):
