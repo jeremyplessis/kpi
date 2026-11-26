@@ -22,6 +22,9 @@ Points importants :
 
 - les colonnes `Année` et `Mois` du suivi ne sont pas importées : seule la
   date fait foi (l'application les déduit automatiquement) ;
+- l'ordre des lignes de l'onglet `Suivi` définit l'ordre de saisie
+  (`ordre_saisie` = 1, 2, 3… selon la position de la ligne) : ce rang sert
+  de critère de départage dans le tableau des résultats, sans être affiché ;
 - une valeur absente des listes (par exemple une action saisie librement)
   est ajoutée au référentiel plutôt que perdue ;
 - les dates manifestement erronées (par exemple une ligne datée de 2009)

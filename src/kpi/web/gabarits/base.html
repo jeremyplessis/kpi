@@ -223,7 +223,7 @@
 <body>
   <div class="conteneur">
     <header class="entete">
-      <h1><img class="pictogramme" src="/static/favicon.png" alt="" aria-hidden="true">Suivi d'activité{% if version %} <span style="font-size: 0.8em; color: var(--encre-doux);">(v{{ version }})</span>{% endif %}</h1>
+      <h1><img class="pictogramme" src="/static/favicon.png" alt="" aria-hidden="true">Suivi d'activité{% if version %} <span style="font-size: 0.8em; color: var(--encre-doux);">(v{{ version }} - <a href="{{ url_changelog }}" target="_blank" rel="noopener" style="color: inherit;">changements</a>)</span>{% endif %}</h1>
       <span class="sous-titre">saisie des contacts et prospects</span>
       <nav>
         <a href="/">Saisie</a>

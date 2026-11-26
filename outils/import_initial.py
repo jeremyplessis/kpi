@@ -156,6 +156,8 @@ class ImportateurClasseur:
 
         Les colonnes Année et Mois sont ignorées : la date seule fait foi
         (elles sont d'ailleurs parfois incohérentes dans le classeur).
+        L'ordre des lignes du classeur définit l'ordre de saisie
+        (``ordre_saisie`` = 1, 2, 3… selon la position de la ligne).
         Les lignes incomplètes (colonnes manquantes en fin de ligne) sont
         acceptées : les valeurs absentes valent simplement None.
         """
@@ -163,13 +165,16 @@ class ImportateurClasseur:
             "SELECT COUNT(*) AS total FROM personne"
         )
         _nb_personnes_avant = _curseur_personnes.fetchone()["total"]
+        _ordre_saisie = 0
         for _ligne in _onglet.iter_rows(min_row=2, values_only=True):
             _date = _valeur_colonne(_ligne, 2)
             _nom = _valeur_colonne(_ligne, 3)
             if _date is None or _nom is None:
                 continue
+            _ordre_saisie += 1
             _evenement = EvenementSuivi(
                 date=_date.date() if isinstance(_date, datetime) else _date,
+                ordre_saisie=_ordre_saisie,
                 personne=str(_nom).strip(),
                 statut_contact=_nettoyer(_valeur_colonne(_ligne, 4)),
                 action_public=_nettoyer(_valeur_colonne(_ligne, 5)),

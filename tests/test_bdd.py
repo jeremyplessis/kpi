@@ -70,6 +70,44 @@ class TestBaseDonnees(unittest.TestCase):
             finally:
                 _base.fermer()
 
+    def test_migration_ordre_saisie(self) -> None:
+        """Une base sans la colonne reçoit un ordre_saisie backfillé.
+
+        Valeurs témoins : trois lignes insérées dans l'ordre id 1, 2, 3
+        reçoivent ordre_saisie 1, 2, 3, et la migration est idempotente.
+        """
+        with tempfile.TemporaryDirectory() as _dossier:
+            _chemin = Path(_dossier) / "test.sqlite3"
+            _base = BaseDonnees(_chemin)
+            _base.connexion.execute("DROP INDEX IF EXISTS idx_suivi_ordre")
+            _base.connexion.execute(
+                "ALTER TABLE suivi_activite DROP COLUMN ordre_saisie"
+            )
+            _pid = PersonneRepository(_base).obtenir_ou_creer("Alice Martin")
+            for _jour in (5, 3, 9):
+                _base.connexion.execute(
+                    "INSERT INTO suivi_activite (date, personne_id) VALUES (?, ?)",
+                    (f"2025-01-{_jour:02d}", _pid),
+                )
+            _base.valider()
+            _base.fermer()
+
+            def _lire_ordres() -> list[int]:
+                _base_ouverte = BaseDonnees(_chemin)
+                try:
+                    return [
+                        _ligne["ordre_saisie"]
+                        for _ligne in _base_ouverte.connexion.execute(
+                            "SELECT ordre_saisie FROM suivi_activite ORDER BY id"
+                        ).fetchall()
+                    ]
+                finally:
+                    _base_ouverte.fermer()
+
+            self.assertEqual(_lire_ordres(), [1, 2, 3])
+            # La migration est idempotente : réouverture sans changement.
+            self.assertEqual(_lire_ordres(), [1, 2, 3])
+
 
 class TestReferentiels(unittest.TestCase):
     """Tests du dépôt des tables de référence."""
@@ -161,6 +199,48 @@ class TestSuiviRepository(unittest.TestCase):
             )
         _personnes = PersonneRepository(self._base)
         self.assertEqual(_personnes.lister(), ["Chloé Bernard"])
+
+    def test_ordre_saisie_incremente(self) -> None:
+        """Chaque ajout reçoit MAX(ordre_saisie)+1 : 1, 2, 3."""
+        _ids = [
+            self._suivi.ajouter(
+                EvenementSuivi(date=date(2025, 4, _jour), personne="Alice Martin")
+            )
+            for _jour in (1, 2, 3)
+        ]
+        _ordres = [self._suivi.obtenir(_id).ordre_saisie for _id in _ids]
+        self.assertEqual(_ordres, [1, 2, 3])
+
+    def test_ordre_saisie_non_reutilise_apres_suppression(self) -> None:
+        """Après suppression, le prochain ordre_saisie continue la séquence."""
+        _id1 = self._suivi.ajouter(
+            EvenementSuivi(date=date(2025, 4, 1), personne="Alice Martin")
+        )
+        self._suivi.ajouter(
+            EvenementSuivi(date=date(2025, 4, 2), personne="Bob Dupont")
+        )
+        self._suivi.supprimer(_id1)
+        _id3 = self._suivi.ajouter(
+            EvenementSuivi(date=date(2025, 4, 3), personne="Chloé Bernard")
+        )
+        self.assertEqual(self._suivi.obtenir(_id3).ordre_saisie, 3)
+
+    def test_mettre_a_jour_conserve_ordre_saisie(self) -> None:
+        """Modifier un événement ne change pas son rang de saisie."""
+        _id = self._suivi.ajouter(
+            EvenementSuivi(
+                date=date(2025, 5, 1), personne="Alice Martin", commentaire="avant"
+            )
+        )
+        self._suivi.mettre_a_jour(
+            _id,
+            EvenementSuivi(
+                date=date(2025, 5, 2), personne="Alice Martin", commentaire="après"
+            ),
+        )
+        _lu = self._suivi.obtenir(_id)
+        self.assertEqual(_lu.ordre_saisie, 1)
+        self.assertEqual(_lu.commentaire, "après")
 
 
 class TestGoogleAnalyticsRepository(unittest.TestCase):

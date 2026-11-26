@@ -31,6 +31,8 @@ class EvenementSuivi:
     commentaire: str | None = None
     #: Identifiant en base, renseigné à la lecture (vide pour un nouvel événement).
     id: int | None = None
+    #: Rang chronologique de saisie (calculé à l'enregistrement).
+    ordre_saisie: int | None = None
 
     @property
     def annee(self) -> int:

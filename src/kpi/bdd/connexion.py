@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS personne (
 CREATE TABLE IF NOT EXISTS suivi_activite (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL,
+    ordre_saisie INTEGER NOT NULL DEFAULT 0,
     personne_id INTEGER NOT NULL REFERENCES personne(id),
     statut_contact_id INTEGER REFERENCES statut_contact(id),
     action_public_id INTEGER REFERENCES action(id),
@@ -114,10 +115,45 @@ class BaseDonnees:
         self.connexion.row_factory = sqlite3.Row
         self.connexion.execute("PRAGMA foreign_keys = ON")
         self._creer_schema()
+        self._migrer_schema()
 
     def _creer_schema(self) -> None:
         """Crée les tables et index s'ils n'existent pas encore."""
         self.connexion.executescript(SCHEMA)
+        self.connexion.commit()
+
+    def _migrer_schema(self) -> None:
+        """Applique les migrations idempotentes sur une base existante.
+
+        Ajoute la colonne ``ordre_saisie`` si elle manque, puis la renseigne
+        par ordre croissant de ``id`` (qui reflète l'ordre d'insertion).
+        """
+        _colonnes = {
+            _ligne["name"]
+            for _ligne in self.connexion.execute(
+                "PRAGMA table_info(suivi_activite)"
+            ).fetchall()
+        }
+        if "ordre_saisie" not in _colonnes:
+            self.connexion.execute(
+                "ALTER TABLE suivi_activite "
+                "ADD COLUMN ordre_saisie INTEGER NOT NULL DEFAULT 0"
+            )
+            self.connexion.execute(
+                """
+                UPDATE suivi_activite
+                SET ordre_saisie = (
+                    SELECT COUNT(*)
+                    FROM suivi_activite s2
+                    WHERE s2.id <= suivi_activite.id
+                )
+                """
+            )
+            self.connexion.commit()
+        self.connexion.execute(
+            "CREATE INDEX IF NOT EXISTS idx_suivi_ordre "
+            "ON suivi_activite(ordre_saisie)"
+        )
         self.connexion.commit()
 
     def valider(self) -> None:

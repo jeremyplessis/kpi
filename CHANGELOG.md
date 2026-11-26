@@ -7,6 +7,20 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
+## 🎉 **0.0.9** *(26 novembre 2026)*
+
+### ✨ Nouveautés
+
+- **Lien vers l'historique des changements** : Le mot « changements », affiché après le numéro de version dans l'en-tête (ex. « v0.0.8 - changements »), ouvre le fichier `CHANGELOG.md` de la branche en cours sur GitHub dans un nouvel onglet 🌐
+  *Exemple : `https://github.com/jeremyplessis/kpi/blob/main/CHANGELOG.md`. Un clic suffit pour savoir ce qui a changé dans la version que vous utilisez, sans quitter l'application*
+
+### 🛠️ Améliorations techniques
+
+- **Ordre de saisie enregistré pour chaque ligne** : Chaque événement du suivi mémorise désormais son rang de saisie (`ordre_saisie`), incrémenté à chaque nouvel enregistrement 💾
+  *Ce rang permet de reconstituer l'ordre chronologique exact des saisies, même quand plusieurs événements partagent la même date. Il sert de dernier critère de tri (décroissant) dans le tableau des résultats de l'écran de saisie, sans y apparaître. Les données existantes sont reprises automatiquement : à l'import, l'ordre des lignes du classeur fait foi, et les bases déjà constituées sont migrées à l'ouverture*
+
+---
+
 ## 🎉 **0.0.8** *(26 novembre 2026)*
 
 ### 🐛 Corrections de bugs
