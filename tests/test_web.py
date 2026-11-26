@@ -801,15 +801,17 @@ class TestPageKpiGhosting(unittest.TestCase):
     def test_tableau_recalcule_le_taux_agrege(self) -> None:
         """Le JS recalcule le taux agrégé depuis demandes/réponses.
 
-        Ne doit plus sommer les taux : la formule (D-R)/D sur les totaux
-        doit être présente dans le bloc du tableau.
+        Ne doit plus sommer les taux : la formule (D-R)/D sur les compteurs
+        agrégés par préfixe doit être présente dans le bloc du tableau.
         """
         _reponse = self._client.get("/kpi?indicateur=TauxGhosting")
         self.assertEqual(_reponse.status_code, 200)
-        self.assertIn(
-            "Math.max(0, (node.demandes - node.reponses) / node.demandes)",
-            _reponse.text,
+        self.assertIn("detailAgrege", _reponse.text)
+        _formule = (
+            "Math.max(0, (_detailAgg.demandes - _detailAgg.reponses)"
+            " / _detailAgg.demandes)"
         )
+        self.assertIn(_formule, _reponse.text)
 
     def test_tableau_total_zero_affiche_zero_pas_nan(self) -> None:
         """Un total nul s'affiche 0 % : le `||` sur la valeur est supprimé.
@@ -822,6 +824,92 @@ class TestPageKpiGhosting(unittest.TestCase):
         self.assertEqual(_reponse.status_code, 200)
         self.assertNotIn("node.total || node", _reponse.text)
         self.assertNotIn("total || 0", _reponse.text)
+
+
+class TestPageKpiConversion(unittest.TestCase):
+    """Tests de la page KPI pour l'indicateur Taux de conversion.
+
+    Le taux agrégé par statut doit être recalculé depuis les compteurs
+    (confirmations / demandes ouvertes), jamais sommé depuis les taux
+    par canal : avec ce jeu, « prospect » vaut 1/2 = 50 % et non 100 %.
+    """
+
+    def setUp(self) -> None:
+        """Prépare une base temporaire avec demandes et confirmations."""
+        self._dossier = tempfile.TemporaryDirectory()
+        self._chemin_base = Path(self._dossier.name) / "test.sqlite3"
+        _base = BaseDonnees(self._chemin_base)
+        try:
+            _referentiels = ReferentielRepository(_base)
+            for _table, _valeurs in REFERENTIELS_TEST.items():
+                for _valeur in _valeurs:
+                    _referentiels.obtenir_ou_creer(_table, _valeur)
+            _suivi = SuiviRepository(_base)
+            # Alice : demande + confirmation (prospect, mail) -> 1/1 = 100 %
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2026, 1, 5), personne="Alice",
+                statut_contact="prospect",
+                action_public="Demande", canal="mail",
+            ))
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2026, 1, 20), personne="Alice",
+                action_photographe="Confirmation",
+            ))
+            # Bob : demande sans confirmation (prospect, instagram) -> 0/1
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2026, 1, 10), personne="Bob",
+                statut_contact="prospect",
+                action_public="Demande", canal="instagram",
+            ))
+            # Chloé : demande sans confirmation (client, mail) -> 0/1 = 0 %
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2026, 2, 2), personne="Chloe",
+                statut_contact="client",
+                action_public="Demande", canal="mail",
+            ))
+            _base.valider()
+        finally:
+            _base.fermer()
+        self._application = ApplicationWeb(self._chemin_base)
+        self._client = TestClient(self._application.application)
+
+    def tearDown(self) -> None:
+        """Supprime le dossier temporaire."""
+        self._dossier.cleanup()
+
+    def test_detail_confirmations_serialise(self) -> None:
+        """Le détail demandes/confirmations par (statut, canal) est transmis.
+
+        Y compris la combinaison à 0 % (prospect/instagram : 0 confirmation
+        sur 1 demande) : elle doit peser dans le dénominateur du statut.
+        """
+        _reponse = self._client.get("/kpi?indicateur=TauxConversion")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn("const isConversion = 1;", _reponse.text)
+        self.assertIn('"prospect/instagram"', _reponse.text)
+        _regex = (
+            r'"prospect/instagram":\s*\{\s*demandes:\s*1,'
+            r"\s*confirmations:\s*0"
+        )
+        self.assertRegex(_reponse.text, _regex)
+        self.assertRegex(
+            _reponse.text,
+            r'"prospect/mail":\s*\{\s*demandes:\s*1,\s*confirmations:\s*1',
+        )
+
+    def test_tableau_recalcule_le_taux_agrege_par_statut(self) -> None:
+        """Le JS recalcule le taux d'un nœud parent (C/D × 100 agrégés).
+
+        La formule sur les compteurs agrégés par préfixe doit être
+        présente : un taux ne se somme jamais (prospect = 50 %, pas 100 %).
+        """
+        _reponse = self._client.get("/kpi?indicateur=TauxConversion")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn("detailAgrege", _reponse.text)
+        self.assertIn(
+            "_detailAgg.confirmations / _detailAgg.demandes * 100",
+            _reponse.text,
+        )
 
 
 class TestCharteGraphique(unittest.TestCase):
