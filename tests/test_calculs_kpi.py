@@ -7,6 +7,7 @@ Jeu de données synthétique et anonyme, avec des valeurs attendues calculées
 
 import sys
 import unittest
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
@@ -449,6 +450,67 @@ class TestTauxConversion(unittest.TestCase):
         _statuts = {_l.dimensions[0] for _l in _lignes}
         self.assertIn("prospect", _statuts)
         self.assertNotIn("client", _statuts)
+
+    def test_detail_periode_compteurs(self) -> None:
+        """Détail demandes/confirmations par (« Tous »/statut, canal).
+
+        Avec le jeu _TOUS sur P = mars 2025 : demandeurs ouverts =
+        Alice (prospect, mail), Chloé (client, mail), Dave (prospect, tel),
+        Émilie (prospect, site) ; Confirmations = Bob (prospect, mail),
+        Chloé (client, mail), Franck (prospect, canal (vide)).
+        Les combinaisons à 0 % (tel, site) sont présentes aussi : elles
+        doivent peser dans le dénominateur du taux agrégé par statut.
+        """
+        _detail = TauxConversion().calculer_detail_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        _par_cle = {
+            _d.dimensions: (_d.demandes, _d.confirmations) for _d in _detail
+        }
+        self.assertEqual(_par_cle[("Tous", "mail")], (2, 2))
+        self.assertEqual(_par_cle[("Tous", "tel")], (1, 0))
+        self.assertEqual(_par_cle[("Tous", "site")], (1, 0))
+        self.assertEqual(_par_cle[("Tous", "(vide)")], (0, 1))
+        self.assertEqual(_par_cle[("client", "mail")], (1, 1))
+        self.assertEqual(_par_cle[("prospect", "mail")], (1, 1))
+        self.assertEqual(_par_cle[("prospect", "tel")], (1, 0))
+
+    def test_taux_global_recalcule_depuis_compteurs(self) -> None:
+        """Taux global = somme confirmations / somme demandes = 3/4 = 75 %.
+
+        Ce n'est PAS la moyenne des taux par canal (qui donnerait
+        (100 + 0 + 0)/3 ≈ 33,3 % sur les canaux avec demande).
+        """
+        _taux = TauxConversion().taux_global_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        self.assertAlmostEqual(_taux, 75.0)
+
+    def test_taux_agrege_par_statut_depuis_detail(self) -> None:
+        """Taux agrégé par statut, recalculé depuis le détail (non sommé).
+
+        prospect = 2 confirmations / 3 demandes ≈ 66,7 % (et pas 100 %),
+        client = 1/1 = 100 %.
+        """
+        _detail = TauxConversion().calculer_detail_periode(
+            self._TOUS, self._DEBUT, self._FIN
+        )
+        _dem: dict[str, int] = defaultdict(int)
+        _conf: dict[str, int] = defaultdict(int)
+        for _d in _detail:
+            if _d.dimensions[0] != "Tous":
+                _dem[_d.dimensions[0]] += _d.demandes
+                _conf[_d.dimensions[0]] += _d.confirmations
+        _taux_prospect = _conf["prospect"] / _dem["prospect"] * 100
+        self.assertAlmostEqual(_taux_prospect, 200 / 3)
+        self.assertAlmostEqual(_conf["client"] / _dem["client"] * 100, 100.0)
+
+    def test_taux_global_sans_demande(self) -> None:
+        """Aucune demande ouverte sur la période → taux global = 0."""
+        _taux = TauxConversion().taux_global_periode(
+            self._TOUS, (2024, 1), (2024, 1)
+        )
+        self.assertEqual(_taux, 0.0)
 
 
 if __name__ == "__main__":
