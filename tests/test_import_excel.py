@@ -158,6 +158,30 @@ class TestImportInitial(unittest.TestCase):
 
         self.assertEqual(SuiviRepository(self._base).compter(), 5)
 
+    def test_ordre_saisie_selon_lignes_classeur(self) -> None:
+        """L'ordre des lignes du classeur définit l'ordre de saisie (1..N).
+
+        Valeurs témoins : 5 lignes de suivi importées dans l'ordre du
+        classeur reçoivent ordre_saisie 1 à 5 ; le réimport --force
+        recalcule la même séquence sans trou ni doublon.
+        """
+        from kpi.bdd.modeles import SuiviRepository  # noqa: E402
+
+        _importateur = ImportateurClasseur(self._base)
+        _importateur.importer(self._chemin_classeur)
+        _suivi = SuiviRepository(self._base)
+        _ordres = [
+            _evenement.ordre_saisie
+            for _evenement in sorted(_suivi.lister(), key=lambda _e: _e.id)
+        ]
+        self.assertEqual(_ordres, [1, 2, 3, 4, 5])
+        _importateur.importer(self._chemin_classeur, _force=True)
+        _ordres_reimport = [
+            _evenement.ordre_saisie
+            for _evenement in sorted(_suivi.lister(), key=lambda _e: _e.id)
+        ]
+        self.assertEqual(_ordres_reimport, [1, 2, 3, 4, 5])
+
     def test_import_atomique_sur_erreur(self) -> None:
         """Un import forcé qui échoue laisse la base dans son état initial.
 

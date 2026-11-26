@@ -207,16 +207,24 @@ class SuiviRepository:
         incomplète.
         """
         _personne_id = self._personnes.obtenir_ou_creer(_evenement.personne)
+        if _evenement.ordre_saisie is not None:
+            _ordre_saisie = _evenement.ordre_saisie
+        else:
+            _ligne_max = self._base.connexion.execute(
+                "SELECT COALESCE(MAX(ordre_saisie), 0) AS max_ordre FROM suivi_activite"
+            ).fetchone()
+            _ordre_saisie = int(_ligne_max["max_ordre"]) + 1
         _curseur = self._base.connexion.execute(
             """
             INSERT INTO suivi_activite (
-                date, personne_id, statut_contact_id, action_public_id,
+                date, ordre_saisie, personne_id, statut_contact_id, action_public_id,
                 canal_id, provenance_id, prestation_id, detail_prestation_id,
                 action_photographe_id, canal2_id, commentaire
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 _evenement.date.isoformat(),
+                _ordre_saisie,
                 _personne_id,
                 self._id_referentiel("statut_contact", _evenement.statut_contact),
                 self._id_referentiel("action", _evenement.action_public),
@@ -239,7 +247,7 @@ class SuiviRepository:
 
     #: Requête de lecture commune (création, liste, modification, suppression).
     REQUETE_LECTURE = """
-            SELECT s.id, s.date, p.nom AS personne, sc.nom AS statut_contact,
+            SELECT s.id, s.date, s.ordre_saisie, p.nom AS personne, sc.nom AS statut_contact,
                    ap.nom AS action_public, c1.nom AS canal,
                    pr.nom AS provenance, pe.nom AS prestation,
                    dp.nom AS detail_prestation, aph.nom AS action_photographe,
@@ -266,6 +274,7 @@ class SuiviRepository:
         return EvenementSuivi(
             id=_ligne["id"],
             date=date.fromisoformat(_ligne["date"]),
+            ordre_saisie=_ligne["ordre_saisie"],
             personne=_ligne["personne"],
             statut_contact=_ligne["statut_contact"],
             action_public=_ligne["action_public"],

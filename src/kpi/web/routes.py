@@ -946,7 +946,9 @@ class ApplicationWeb:
         """Trie les événements selon une colonne et un sens.
 
         Les événements sans valeur pour cette colonne restent en fin de
-        liste quel que soit le sens.
+        liste quel que soit le sens. En cas d'égalité sur la colonne de
+        tri, l'ordre de saisie décroissant est appliqué comme dernier
+        critère de départage (la saisie la plus récente d'abord).
         """
         def _valeur(_evenement):
             return getattr(_evenement, _tri) or ""
@@ -961,6 +963,9 @@ class ApplicationWeb:
             for _evenement in _evenements
             if not getattr(_evenement, _tri)
         ]
+        # Tri stable : on trie d'abord par le départage (ordre de saisie
+        # décroissant), puis par la colonne demandée.
+        _remplis.sort(key=lambda _e: _e.ordre_saisie or 0, reverse=True)
         return sorted(_remplis, key=_valeur, reverse=_sens == "desc") + _vides
 
     def _urls_tri(

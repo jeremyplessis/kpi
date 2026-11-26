@@ -445,6 +445,39 @@ class TestTriEtFiltres(unittest.TestCase):
             _reponse.text.index("14/01/2025"),
         )
 
+    def test_departage_ordre_saisie_decroissant(self) -> None:
+        """À date égale, la saisie la plus récente apparaît en premier.
+
+        Deux événements sont saisis le même jour (02/03/2025, date déjà
+        portée par l'événement de Bob) : au tri par défaut (date
+        décroissante), le commentaire de la saisie la plus récente
+        précède celui de la saisie antérieure.
+        """
+        self._client.post(
+            "/evenements",
+            data={"date": "2025-03-02", "personne": "Alice Martin",
+                  "commentaire": "saisie ancienne"},
+        )
+        self._client.post(
+            "/evenements",
+            data={"date": "2025-03-02", "personne": "Bob Dupont",
+                  "commentaire": "saisie récente"},
+        )
+        _reponse = self._client.get("/")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertLess(
+            _reponse.text.index("saisie récente"),
+            _reponse.text.index("saisie ancienne"),
+        )
+
+    def test_ordre_saisie_non_affiche(self) -> None:
+        """Aucune colonne ni aucun lien de tri sur l'ordre de saisie."""
+        _reponse = self._client.get("/")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertNotIn("ordre_saisie", _reponse.text)
+        self.assertNotIn("tri=ordre_saisie", _reponse.text)
+        self.assertNotIn("N°", _reponse.text)
+
     def test_filtre_personne_insensible_a_la_casse(self) -> None:
         """Le filtre personne ne garde que les événements correspondants.
 
