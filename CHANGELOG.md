@@ -7,7 +7,7 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
-## 🔜 **À venir** *(Next Release)*
+## 🎉 **0.0.9** *(26 novembre 2026)*
 
 ### ✨ Nouveautés
 
