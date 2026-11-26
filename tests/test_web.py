@@ -1038,5 +1038,66 @@ class TestPeriodeParDefaut(unittest.TestCase):
         self.assertEqual(_periode_par_defaut(date(2028, 2, 29)), (2027, 3, 2028, 2))
 
 
+class TestLienChangelog(unittest.TestCase):
+    """Tests du lien « changements » vers le CHANGELOG publié sur GitHub."""
+
+    def setUp(self) -> None:
+        """Prépare une base temporaire et le client de test."""
+        self._dossier = tempfile.TemporaryDirectory()
+        self._chemin_base = Path(self._dossier.name) / "test.sqlite3"
+        _base = BaseDonnees(self._chemin_base)
+        try:
+            _referentiels = ReferentielRepository(_base)
+            for _table, _valeurs in REFERENTIELS_TEST.items():
+                for _valeur in _valeurs:
+                    _referentiels.obtenir_ou_creer(_table, _valeur)
+            _base.valider()
+        finally:
+            _base.fermer()
+        self._application = ApplicationWeb(self._chemin_base)
+        self._client = TestClient(self._application.application)
+
+    def tearDown(self) -> None:
+        """Supprime le dossier temporaire."""
+        self._dossier.cleanup()
+
+    def test_lien_changelog_nouvel_onglet(self) -> None:
+        """L'en-tête contient un lien target=_blank vers github.com."""
+        _reponse = self._client.get("/")
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn('target="_blank"', _reponse.text)
+        self.assertIn("github.com/jeremyplessis/kpi/blob/", _reponse.text)
+        self.assertIn("/CHANGELOG.md", _reponse.text)
+
+    def test_lien_changelog_attributs(self) -> None:
+        """Le lien porte rel=noopener et le mot « changements »."""
+        _reponse = self._client.get("/")
+        self.assertIn('rel="noopener"', _reponse.text)
+        self.assertIn("changements", _reponse.text)
+
+    def test_url_changelog_branche_courante(self) -> None:
+        """L'URL globale contient la branche courante (ou main en repli)."""
+        _url = self._application.modeles.env.globals["url_changelog"]
+        self.assertTrue(
+            _url.endswith("/CHANGELOG.md"),
+            f"URL inattendue : {_url}",
+        )
+        self.assertIn("github.com/jeremyplessis/kpi/blob/", _url)
+
+    def test_branche_courante_repli_main(self) -> None:
+        """git indisponible → la branche retournée est « main »."""
+        from unittest.mock import patch
+
+        with patch(
+            "kpi.web.routes._run_subprocess", side_effect=FileNotFoundError
+        ):
+            self.assertEqual(self._application._branche_courante(), "main")
+
+    def test_route_changelog_interne_absente(self) -> None:
+        """Pas de page interne /changelog : le lien est externe."""
+        _reponse = self._client.get("/changelog")
+        self.assertEqual(_reponse.status_code, 404)
+
+
 if __name__ == "__main__":
     unittest.main()
