@@ -82,6 +82,9 @@ FILTRES_LISTE = (
 #: Nombre d'événements affichés par page dans la liste.
 EVENEMENTS_PAR_PAGE = 10
 
+#: Clés d'URL des filtres de période sur la page KPI.
+CLES_PERIODE = ("annee_debut", "mois_debut", "annee_fin", "mois_fin")
+
 #: Libellés conviviaux des listes sur la page de paramétrage.
 LIBELLES_LISTES = {
     "statut_contact": "Statut du contact",
@@ -114,6 +117,21 @@ def _periode_par_defaut(
     _debut_total = _total_mois - 11
     _a_debut, _m_debut = divmod(_debut_total, 12)
     return _a_debut, _m_debut + 1, _ref.year, _ref.month
+
+
+def _bornes_annees_mois(
+    _evenements: list[EvenementSuivi],
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """Retourne les couples (année, mois) minimum et maximum des événements.
+
+    :param _evenements: événements du suivi (peut être vide).
+    :returns: ``((année_min, mois_min), (année_max, mois_max))``, ou ``None``
+        si la liste est vide.
+    """
+    if not _evenements:
+        return None
+    _cles = [(_ev.annee, _ev.mois) for _ev in _evenements]
+    return min(_cles), max(_cles)
 
 
 class ApplicationWeb:
@@ -490,8 +508,11 @@ class ApplicationWeb:
             _annee_fin = _requete.query_params.get("annee_fin", "")
             _mois_fin = _requete.query_params.get("mois_fin", "")
             
-            # Si aucun paramètre de période : 12 derniers mois glissants
-            if not (_annee_debut or _mois_debut or _annee_fin or _mois_fin):
+            # Période par défaut (12 mois glissants) UNIQUEMENT si aucun
+            # des 4 paramètres de période n'est présent dans l'URL.
+            # Des paramètres présents mais vides signifient un choix
+            # explicite « Toutes les années » / « Tous les mois ».
+            if not any(_cle in _requete.query_params for _cle in CLES_PERIODE):
                 _a, _m, _af, _mf = _periode_par_defaut()
                 _annee_debut = str(_a)
                 _mois_debut = str(_m)
@@ -499,12 +520,18 @@ class ApplicationWeb:
                 _mois_fin = str(_mf)
                 # Ajouter les années par défaut aux disponibles
                 _annees = _annees | {_a, _af}
-            
-            # Filtrer les événements selon la période
-            _evenements_filtres = self._filtrer_par_periode(
+
+            # Bornes effectives de la période : les composantes vides sont
+            # résolues sur les couples (année, mois) min/max des événements.
+            _debut, _fin = self._bornes_periode_resolues(
                 _evenements, _annee_debut, _mois_debut, _annee_fin, _mois_fin
             )
-            
+
+            # Filtrer les événements selon la période
+            _evenements_filtres = self._filtrer_par_bornes(
+                _evenements, _debut, _fin
+            )
+
             # Trouver l'indicateur sélectionné
             _indicateur_classe = None
             _lignes_indicateur = []
@@ -512,8 +539,6 @@ class ApplicationWeb:
             _indicateur_libelle = ""
             _indicateur_description = ""
             _indicateur_dimensions = []
-            _debut: tuple[int, int] | None = None
-            _fin: tuple[int, int] | None = None
 
             if _indicateur_nom:
                 for _indic_classe in REGISTRE_INDICATEURS:
@@ -523,12 +548,6 @@ class ApplicationWeb:
                         # Les indicateurs avec calculer_periode ont besoin
                         # de tous les événements + les bornes de la période.
                         if hasattr(_indicateur, "calculer_periode"):
-                            _a_d = int(_annee_debut) if _annee_debut else None
-                            _m_d = int(_mois_debut) if _mois_debut else (1 if _a_d else None)
-                            _a_f = int(_annee_fin) if _annee_fin else None
-                            _m_f = int(_mois_fin) if _mois_fin else (12 if _a_f else None)
-                            _debut = (_a_d, _m_d) if _a_d else None
-                            _fin = (_a_f, _m_f) if _a_f else None
                             _lignes_indicateur = _indicateur.calculer_periode(
                                 _evenements, _debut, _fin
                             )
@@ -616,18 +635,24 @@ class ApplicationWeb:
             _annee_fin = _requete.query_params.get("annee_fin", "")
             _mois_fin = _requete.query_params.get("mois_fin", "")
             
-            # Si aucun paramètre de période : 12 derniers mois glissants
-            if not (_annee_debut or _mois_debut or _annee_fin or _mois_fin):
+            # Période par défaut (12 mois glissants) UNIQUEMENT si aucun
+            # des 4 paramètres de période n'est présent dans l'URL.
+            if not any(_cle in _requete.query_params for _cle in CLES_PERIODE):
                 _a, _m, _af, _mf = _periode_par_defaut()
                 _annee_debut = str(_a)
                 _mois_debut = str(_m)
                 _annee_fin = str(_af)
                 _mois_fin = str(_mf)
                 _annees = _annees | {_a, _af}
-            
-            # Filtrer les événements selon la période
-            _evenements_filtres = self._filtrer_par_periode(
+
+            # Bornes effectives : composantes vides résolues sur min/max
+            # des données (« Toutes les années » / « Tous les mois »).
+            _debut, _fin = self._bornes_periode_resolues(
                 _evenements, _annee_debut, _mois_debut, _annee_fin, _mois_fin
+            )
+            # Filtrer les événements selon la période
+            _evenements_filtres = self._filtrer_par_bornes(
+                _evenements, _debut, _fin
             )
             
             # Calculer le détail du ghosting
@@ -653,6 +678,56 @@ class ApplicationWeb:
     def _obtenir_annees(self, _evenements: list[EvenementSuivi]) -> set[int]:
         """Retourne l'ensemble des années présentes dans les événements."""
         return {_ev.annee for _ev in _evenements}
+
+    def _bornes_periode_resolues(
+        self,
+        _evenements: list[EvenementSuivi],
+        _annee_debut: str,
+        _mois_debut: str,
+        _annee_fin: str,
+        _mois_fin: str,
+    ) -> tuple[tuple[int, int] | None, tuple[int, int] | None]:
+        """Résout les bornes (année, mois) effectives de la période demandée.
+
+        Une composante vide (« Toutes les années » / « Tous les mois »)
+        est remplacée par le couple min/max des événements : la période
+        couvre alors l'intégralité de l'historique. Si la base est vide,
+        les bornes restent ``None`` (aucun filtrage, aucune donnée).
+
+        :returns: ``(début, fin)`` avec ``début``/``fin`` en ``(année, mois)``
+            ou ``None`` quand la borne n'est pas contrainte.
+        """
+        _bornes = _bornes_annees_mois(_evenements)
+        _a_d = int(_annee_debut) if _annee_debut else (
+            _bornes[0][0] if _bornes else None
+        )
+        _m_d = int(_mois_debut) if _mois_debut else (
+            _bornes[0][1] if _bornes else (1 if _a_d else None)
+        )
+        _a_f = int(_annee_fin) if _annee_fin else (
+            _bornes[1][0] if _bornes else None
+        )
+        _m_f = int(_mois_fin) if _mois_fin else (
+            _bornes[1][1] if _bornes else (12 if _a_f else None)
+        )
+        _debut = (_a_d, _m_d) if _a_d else None
+        _fin = (_a_f, _m_f) if _a_f else None
+        return _debut, _fin
+
+    def _filtrer_par_bornes(
+        self,
+        _evenements: list[EvenementSuivi],
+        _debut: tuple[int, int] | None,
+        _fin: tuple[int, int] | None,
+    ) -> list[EvenementSuivi]:
+        """Filtre les événements entre les bornes (année, mois) résolues."""
+        return self._filtrer_par_periode(
+            _evenements,
+            str(_debut[0]) if _debut else "",
+            str(_debut[1]) if _debut else "",
+            str(_fin[0]) if _fin else "",
+            str(_fin[1]) if _fin else "",
+        )
 
     def _filtrer_par_periode(
         self,
@@ -739,16 +814,14 @@ class ApplicationWeb:
             }.items()
             if _v
         }
-        # Bornes de période pour les indicateurs avec calculer_periode
-        _a_d = int(_annee_debut) if _annee_debut else None
-        _m_d = int(_mois_debut) if _mois_debut else (1 if _a_d else None)
-        _a_f = int(_annee_fin) if _annee_fin else None
-        _m_f = int(_mois_fin) if _mois_fin else (12 if _a_f else None)
-        _debut = (_a_d, _m_d) if _a_d else None
-        _fin = (_a_f, _m_f) if _a_f else None
-        # Événements filtrés pour les indicateurs classiques
-        _evenements_filtres = self._filtrer_par_periode(
+        # Bornes de période résolues : composantes vides = min/max des
+        # données (« Toutes les années » / « Tous les mois » explicites).
+        _debut, _fin = self._bornes_periode_resolues(
             _tous_evenements, _annee_debut, _mois_debut, _annee_fin, _mois_fin
+        )
+        # Événements filtrés pour les indicateurs classiques
+        _evenements_filtres = self._filtrer_par_bornes(
+            _tous_evenements, _debut, _fin
         )
         for _classe in REGISTRE_INDICATEURS:
             _indicateur = _classe()

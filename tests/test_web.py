@@ -21,7 +21,11 @@ from fastapi.testclient import TestClient  # noqa: E402 - chemin ajusté pour le
 from kpi.bdd.connexion import BaseDonnees  # noqa: E402 - chemin ajusté pour les tests
 from kpi.bdd.modeles import ReferentielRepository, SuiviRepository  # noqa: E402 - chemin ajusté pour les tests
 from kpi.suivi import EvenementSuivi  # noqa: E402 - chemin ajusté pour les tests
-from kpi.web.routes import ApplicationWeb, _periode_par_defaut  # noqa: E402 - chemin ajusté pour les tests
+from kpi.web.routes import (  # noqa: E402 - chemin ajusté pour les tests
+    ApplicationWeb,
+    _bornes_annees_mois,
+    _periode_par_defaut,
+)
 
 #: Valeurs de référence minimales pour alimenter les listes déroulantes.
 REFERENTIELS_TEST = {
@@ -1036,6 +1040,154 @@ class TestPeriodeParDefaut(unittest.TestCase):
     def test_annee_bissextile(self) -> None:
         """Février 2028 (bissextile) → mars 2027 à février 2028."""
         self.assertEqual(_periode_par_defaut(date(2028, 2, 29)), (2027, 3, 2028, 2))
+
+
+class TestBornesAnneesMois(unittest.TestCase):
+    """Bornes min/max pour « Toutes les années » / « Tous les mois ».
+
+    Valeurs témoins : événements en juin 2024, décembre 2025 et janvier 2026
+    → bornes ((2024, 6), (2026, 1)). Avec les 4 paramètres de période présents
+    mais vides dans l'URL, la page KPI doit couvrir toute cette plage (et non
+    retomber sur les 12 mois glissants).
+    """
+
+    def setUp(self) -> None:
+        """Prépare une base temporaire avec des événements sur 3 périodes."""
+        self._dossier = tempfile.TemporaryDirectory()
+        self._chemin_base = Path(self._dossier.name) / "test.sqlite3"
+        _base = BaseDonnees(self._chemin_base)
+        try:
+            _referentiels = ReferentielRepository(_base)
+            for _table, _valeurs in REFERENTIELS_TEST.items():
+                for _valeur in _valeurs:
+                    _referentiels.obtenir_ou_creer(_table, _valeur)
+            _suivi = SuiviRepository(_base)
+            # Juin 2024 : 1 demande
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2024, 6, 10), personne="Alice",
+                statut_contact="prospect",
+                action_public="Demande", canal="mail",
+            ))
+            # Décembre 2025 : 1 demande, 1 réponse
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2025, 12, 3), personne="Bob",
+                statut_contact="prospect",
+                action_public="Demande", canal="mail",
+            ))
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2025, 12, 20), personne="Bob",
+                statut_contact="prospect",
+                action_public="Réponse", canal="mail",
+            ))
+            # Janvier 2026 : 1 demande
+            _suivi.ajouter(EvenementSuivi(
+                date=date(2026, 1, 5), personne="Chloe",
+                statut_contact="prospect",
+                action_public="Demande", canal="instagram",
+            ))
+            _base.valider()
+        finally:
+            _base.fermer()
+        self._application = ApplicationWeb(self._chemin_base)
+        self._client = TestClient(self._application.application)
+
+    def tearDown(self) -> None:
+        """Supprime le dossier temporaire."""
+        self._dossier.cleanup()
+
+    def test_bornes_annees_mois_liste_vide(self) -> None:
+        """Une liste vide ne produit pas de bornes (None, pas d'erreur)."""
+        self.assertIsNone(_bornes_annees_mois([]))
+
+    def test_bornes_annees_mois_min_max(self) -> None:
+        """Les couples min et max sont calculés sur (année, mois)."""
+        _evenements = [
+            EvenementSuivi(date=date(2026, 1, 5), personne="A"),
+            EvenementSuivi(date=date(2024, 6, 2), personne="B"),
+            EvenementSuivi(date=date(2025, 12, 3), personne="C"),
+        ]
+        self.assertEqual(
+            _bornes_annees_mois(_evenements), ((2024, 6), (2026, 1))
+        )
+
+    def test_bornes_periode_resolues_parametres_vides(self) -> None:
+        """4 composantes vides → bornes = min/max des événements."""
+        _base = BaseDonnees(self._chemin_base)
+        try:
+            _evenements = SuiviRepository(_base).lister()
+        finally:
+            _base.fermer()
+        _debut, _fin = self._application._bornes_periode_resolues(
+            _evenements, "", "", "", ""
+        )
+        self.assertEqual(_debut, (2024, 6))
+        self.assertEqual(_fin, (2026, 1))
+
+    def test_page_kpi_parametres_vides_couvrent_toute_la_plage(self) -> None:
+        """4 sélecteurs vides (« Appliquer ») couvrent tout l'historique.
+
+        Le mois le plus ancien (2024/6) et le plus récent (2026/1) doivent
+        apparaître : la période par défaut des 12 mois glissants ne doit PAS
+        être appliquée quand les paramètres sont présents mais vides.
+        """
+        _reponse = self._client.get(
+            "/kpi?indicateur=TauxGhosting&annee_debut=&mois_debut="
+            "&annee_fin=&mois_fin="
+        )
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn('"2024/6"', _reponse.text)
+        self.assertIn('"2025/12"', _reponse.text)
+        self.assertIn('"2026/1"', _reponse.text)
+
+    def test_page_kpi_sans_parametre_applique_les_12_mois(self) -> None:
+        """Sans aucun paramètre de période, les 12 mois glissants s'appliquent.
+
+        Les sélecteurs d'année affichent la période par défaut comme
+        sélectionnée (non-régression du comportement par défaut).
+        """
+        _reponse = self._client.get("/kpi?indicateur=TauxGhosting")
+        self.assertEqual(_reponse.status_code, 200)
+        _a, _m, _af, _mf = _periode_par_defaut()
+        self.assertIn(
+            f'<option value="{_a}" selected>{_a}</option>', _reponse.text
+        )
+        self.assertIn(
+            f'<option value="{_af}" selected>{_af}</option>', _reponse.text
+        )
+
+    def test_page_kpi_un_seul_parametre_pas_de_defaut(self) -> None:
+        """Un seul paramètre : pas de défaut, fin = max des données."""
+        _reponse = self._client.get(
+            "/kpi?indicateur=TauxGhosting&annee_debut=2025"
+        )
+        self.assertEqual(_reponse.status_code, 200)
+        # 2024/6 exclu (avant 2025), 2026/1 inclus (fin = max des données).
+        self.assertNotIn('"2024/6"', _reponse.text)
+        self.assertIn('"2026/1"', _reponse.text)
+
+    def test_page_ghosting_parametres_vides(self) -> None:
+        """La page ghosting applique les mêmes bornes min/max."""
+        _reponse = self._client.get(
+            "/kpi/TauxGhosting?annee_debut=&mois_debut=&annee_fin=&mois_fin="
+        )
+        self.assertEqual(_reponse.status_code, 200)
+        self.assertIn("2024", _reponse.text)
+
+    def test_base_vide_parametres_vides_aucune_erreur(self) -> None:
+        """Base vide + 4 paramètres vides : aucune donnée, sans erreur."""
+        _dossier = tempfile.TemporaryDirectory()
+        try:
+            _chemin = Path(_dossier.name) / "vide.sqlite3"
+            _app = ApplicationWeb(_chemin)
+            _client = TestClient(_app.application)
+            _reponse = _client.get(
+                "/kpi?indicateur=TauxGhosting&annee_debut=&mois_debut="
+                "&annee_fin=&mois_fin="
+            )
+            self.assertEqual(_reponse.status_code, 200)
+            self.assertIn("Aucune donnée disponible", _reponse.text)
+        finally:
+            _dossier.cleanup()
 
 
 class TestLienChangelog(unittest.TestCase):
