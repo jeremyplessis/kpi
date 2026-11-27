@@ -7,6 +7,15 @@ Chaque version est documentée avec ses principales fonctionnalités, correction
 
 ---
 
+## 🔜 **À venir** *(Next Release)*
+
+### 🐛 Corrections de bugs
+
+- **Filtres « Toutes les années » / « Tous les mois » enfin pris en compte** : Sur l'écran KPI, les sélectionner puis cliquer sur « Appliquer les filtres » affichait toute la plage de vos données 🐞
+  *Auparavant, ce clic ramenait à la période par défaut des 12 derniers mois, comme si aucun filtre n'avait été choisi. Désormais, seuls un écran ouvert sans filtre ou le lien « Effacer les filtres » appliquent ces 12 derniers mois ; « Toutes les années » / « Tous les mois » couvrent bien du mois le plus ancien au mois le plus récent de votre suivi, et les indicateurs sont recalculés sur cette période complète*
+
+---
+
 ## 🎉 **0.0.9** *(26 novembre 2026)*
 
 ### ✨ Nouveautés
